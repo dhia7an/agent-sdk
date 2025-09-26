@@ -1,5 +1,4 @@
-
-# Smart Agent Monorepo
+# @cognipeer/agent-sdk
 
 [![npm](https://img.shields.io/npm/v/@cognipeer/agent-sdk?color=success)](https://npmjs.com/package/@cognipeer/agent-sdk) [Docs Website](https://cognipeer.github.io/agent-sdk/) · [Package (`@cognipeer/agent-sdk`)](./agent-sdk)
 
