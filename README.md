@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@cognipeer/agent-sdk?color=success)](https://npmjs.com/package/@cognipeer/agent-sdk) [Docs Website](https://cognipeer.github.io/agent-sdk/) · [Package (`@cognipeer/agent-sdk`)](./agent-sdk)
 
-Lightweight, message-first agent runtime that keeps tool calls transparent, automatically summarizes long histories, and ships with planning, multi-agent handoffs, and rich debug logs. This monorepo contains the published SDK, runnable examples, and the documentation site.
+Lightweight, message-first agent runtime that keeps tool calls transparent, automatically summarizes long histories, and ships with planning, multi-agent handoffs, and structured tracing. This monorepo contains the published SDK, runnable examples, and the documentation site.
 
 - SDK source: `agent-sdk/`
 - Examples: `examples/`
@@ -20,14 +20,14 @@ Lightweight, message-first agent runtime that keeps tool calls transparent, auto
 - [Examples](#examples)
 - [Architecture snapshot](#architecture-snapshot)
 - [API surface](#api-surface)
-- [Debugging & logs](#debugging--logs)
+- [Tracing & observability](#tracing--observability)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 
 ## Overview
 
-`@cognipeer/agent-sdk` is a zero-graph, TypeScript-first agent loop. Tool calls are persisted as messages, token pressure triggers automatic summarization, and optional planning mode enforces TODO hygiene with the bundled `manage_todo_list` tool. Multi-agent composition, structured output, and Markdown debug logs are built-in.
+`@cognipeer/agent-sdk` is a zero-graph, TypeScript-first agent loop. Tool calls are persisted as messages, token pressure triggers automatic summarization, and optional planning mode enforces TODO hygiene with the bundled `manage_todo_list` tool. Multi-agent composition, structured output, and batched tracing are built-in.
 
 Highlights:
 - **Message-first design** – assistant tool calls and tool responses stay in the transcript.
@@ -36,7 +36,7 @@ Highlights:
 - **Structured output** – provide a Zod schema and the agent injects a finalize tool to capture JSON deterministically.
 - **Multi-agent and handoffs** – wrap agents as tools or transfer control mid-run with `asTool` / `asHandoff`.
 - **Usage + events** – normalize provider usage, surface `tool_call`, `plan`, `summarization`, `metadata`, and `handoff` events.
-- **Rich logs** – optional per-invoke Markdown snapshots with timestamps, limits, and full timelines.
+- **Structured tracing** – optional per-invoke JSON traces with metadata, payload capture, upload hooks, and archival on disk.
 
 ## What’s inside
 
@@ -45,7 +45,7 @@ Highlights:
 | `agent-sdk/` | Source for the published package (TypeScript, bundled via tsup). |
 | `examples/` | End-to-end scripts demonstrating tools, planning, summarization, multi-agent, MCP, structured output, and vision input. |
 | `docs/` | Jekyll site content served at [cognipeer.github.io/agent-sdk](https://cognipeer.github.io/agent-sdk/). |
-| `logs/` | Generated Markdown traces when `debug.enabled: true`. Safe to delete. |
+| `logs/` | Generated trace sessions when `tracing.enabled: true`. Safe to delete. |
 
 ## Install
 
@@ -86,7 +86,7 @@ const agent = createSmartAgent({
   tools: [echo],
   useTodoList: true,
   limits: { maxToolCalls: 5, maxToken: 8000 },
-  debug: { enabled: true },
+  tracing: { enabled: true },
 });
 
 const result = await agent.invoke({
@@ -190,18 +190,18 @@ Exported helpers (`agent-sdk/src/index.ts`):
 - `buildSystemPrompt(extra?, planning?, name?)`
 - Node factories (`nodes/*`), context helpers, token utilities, and full TypeScript types (`SmartAgentOptions`, `SmartState`, `AgentInvokeResult`, etc.).
 
-`SmartAgentOptions` accepts the usual suspects (`model`, `tools`, `limits`, `useTodoList`, `summarization`, `usageConverter`, `debug`, `onEvent`). See `docs/api/` for detailed type references.
+`SmartAgentOptions` accepts the usual suspects (`model`, `tools`, `limits`, `useTodoList`, `summarization`, `usageConverter`, `tracing`, `onEvent`). See `docs/api/` for detailed type references.
 
-## Debugging & logs
+## Tracing & observability
 
-Enable logging by passing `debug: { enabled: true }`. Each invocation writes Markdown into `logs/<ISO_TIMESTAMP>/` detailing:
+Enable tracing by passing `tracing: { enabled: true }`. Each invocation writes `trace.session.json` into `logs/<SESSION_ID>/` detailing:
 
-- Model name, time, and limits
-- Serialized tool definitions (names + schemas)
-- Full message timeline with tool calls and responses
-- Provider usage when available
+- Model/provider, agent name/version, limits, and timing metadata
+- Structured events for model calls, tool executions, summaries, and errors
+- Optional payload captures (request/response/tool bodies) when `logData` is `true`
+- Aggregated token usage, byte counts, and error summaries for dashboards
 
-Provide `debug.callback` to receive the same payload in-memory instead of writing to disk.
+You can disable payload capture with `logData: false` to keep only metrics, or configure `upload: { url, headers? }` to POST the JSON trace to your observability API immediately after the run. Headers are kept in-memory and never written alongside the trace.
 
 ## Development
 

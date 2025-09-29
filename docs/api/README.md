@@ -19,7 +19,7 @@ permalink: /api/
 | `buildSystemPrompt(extra?, planning?, name?)` | Compose the built-in system prompt with optional additional instructions. |
 | `contextTools.ts` | Factory for built-in tools (`manage_todo_list`, `get_tool_response`, optional `response`). |
 | `nodes/*` | Individual node factories (resolver, agentCore, tools, contextSummarize, toolLimitFinalize). |
-| `utils/*` | Token heuristics, usage normalization, debug logging helpers. |
+| `utils/*` | Token heuristics, usage normalization, tracing helpers. |
 | `types.ts` | Full TypeScript surface: `SmartAgentOptions`, `SmartState`, `AgentInvokeResult`, events, etc. |
 
 ## Options
@@ -40,7 +40,7 @@ permalink: /api/
 - `outputSchema?: ZodSchema` – enables structured output finalize tool + parsed `result.output`.
 - `handoffs?: HandoffDescriptor[]` – pre-configured agent handoffs exposed as tools.
 - `usageConverter?: (finalMessage, fullState, model) => any` – override usage normalization.
-- `debug?: { enabled: boolean; path?: string; callback?: (entry) => void }` – Markdown logs and/or callback hook.
+- `tracing?: { enabled: boolean; path?: string; mode?: 'batched'; logData?: boolean; upload?: { url: string; headers?: Record<string,string> } }` – write JSON trace sessions with optional payload capture and HTTP upload.
 - `onEvent?: (event: SmartAgentEvent) => void` – global event listener (per-invoke listener can override).
 
 ### SmartAgent-specific behavior

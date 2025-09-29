@@ -26,7 +26,7 @@ const agent = createSmartAgent({
   tools: [echo],
   useTodoList: true,
   limits: { maxToolCalls: 5 },
-  debug: { enabled: true }
+  tracing: { enabled: true }
 });
 
 const res = await agent.invoke({ messages: [{ role: 'user', content: "Plan and execute: echo 'hi' then confirm done." }] });

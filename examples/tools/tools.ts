@@ -54,10 +54,14 @@ const apiKey = OPENAI_API_KEY;
 const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
 
 const agent = createAgent({
+    name: 'Cognipeer Agent Example',
+    version: '0.1.0',
     model,
     tools: [echo, ...(TAVILY_API_KEY ? [tavilySearch] : [])],
     limits: { maxToolCalls: 10 },
-    debug: { enabled: true },
+    tracing: {
+        enabled: true, upload: { url: "http://localhost:8080/v1/client/tracing/sessions", headers: { "authorization": "Bearer sl0eedeendwvu1fkedba9vyd7edhhksmv6vtigpkmwlk7zqogenyj8epqxfb" } }
+    }
 });
 
 const res = await agent.invoke(

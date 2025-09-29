@@ -16,7 +16,7 @@ A lightweight, message-first agent loop with optional planning, summarization, a
 - Tool limits (total + parallel) with automatic finalize messaging.
 - Agent composition via `asTool` and runtime handoffs.
 - Vision-friendly message parts and provider usage normalization.
-- Rich Markdown debug logs and streaming `onEvent` hooks.
+- Structured tracing (JSON) and streaming `onEvent` hooks.
 
 ## Start here
 
@@ -41,7 +41,7 @@ API & Building Blocks
 
 Capabilities & Operations
 - [Limits & Tokens](limits-tokens/) – Token heuristics, summarization knobs, and limit trade-offs.
-- [Debugging](debugging/) – Markdown logs, callbacks, and recommended debug flows.
+- [Tracing](debugging/) – JSON trace sessions, payload capture, and upload hooks.
 - [Examples](examples/) – Capability matrix mapped to example folders.
 - [FAQ](faq/) – Common issues, tips, and integration notes.
 
@@ -65,7 +65,7 @@ Capabilities & Operations
 ## Design principles
 
 - **Minimal surface** – no external graph runtime; explicit while-loop orchestration.
-- **Developer-first** – predictable events, inspection-ready state, and rich logs.
+- **Developer-first** – predictable events, inspection-ready state, and structured traces.
 - **Flexible adapters** – bring any model that implements `invoke`; LangChain is optional.
 - **Observable by default** – usage normalization, plan events, and Markdown traces.
 

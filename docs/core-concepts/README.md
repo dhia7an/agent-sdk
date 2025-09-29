@@ -82,7 +82,7 @@ Provide `outputSchema` (Zod). The framework:
 - `handoff` announcements when control switches to another runtime.
 - `finalAnswer` with the final assistant content.
 
-Enable `debug.enabled` to persist Markdown transcripts under `logs/<timestamp>/` or provide `debug.callback` to intercept logs programmatically.
+Enable `tracing.enabled` to persist JSON trace sessions under `logs/<session>/`. Set `logData: false` for metrics-only mode or add an `upload` target to ship traces to your observability API.
 
 ## 10. Usage tracking
 

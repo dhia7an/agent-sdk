@@ -6,6 +6,7 @@ import { createAgentCoreNode } from "./nodes/agentCore.js";
 import { createToolsNode } from "./nodes/tools.js";
 import { createToolLimitFinalizeNode } from "./nodes/toolLimitFinalize.js";
 import { createSmartTool } from "./tool.js";
+import { createTraceSession, finalizeTraceSession } from "./utils/tracing.js";
 
 type LiteMessage = { role: string; content: any; name?: string; [k: string]: any };
 const human = (content: any): LiteMessage => ({ role: 'user', content });
@@ -64,6 +65,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
 
   const runtime: AgentRuntimeConfig = {
     name: opts.name,
+    version: opts.version,
     model: opts.model,
     tools: toolsBase,
     systemPrompt: undefined,
@@ -76,6 +78,11 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
     invoke: async (input: SmartState, config?: InvokeConfig): Promise<AgentInvokeResult<TOutput>> => {
       const onEvent = config?.onEvent;
       const emit = (e: SmartAgentEvent) => { try { onEvent?.(e); } catch {} };
+      const traceSession = createTraceSession(opts);
+
+      const ctx: Record<string, any> = { ...(input.ctx || {}), __onEvent: onEvent };
+      if (traceSession) ctx.__traceSession = traceSession;
+
       const initial: SmartState = {
         messages: input.messages || [],
         summaries: input.summaries || [],
@@ -84,14 +91,30 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
         toolHistory: input.toolHistory || [],
         toolHistoryArchived: input.toolHistoryArchived || [],
         metadata: input.metadata,
-        ctx: { ...(input.ctx || {}), __onEvent: onEvent },
+        ctx,
         plan: input.plan || null,
         planVersion: input.planVersion || 0,
         agent: input.agent || runtime,
         usage: input.usage || { perRequest: [], totals: {} },
       };
 
-      const res: any = await runLoop(initial, config);
+      let res: SmartState;
+      try {
+        res = await runLoop(initial, config);
+      } catch (err: any) {
+        await finalizeTraceSession(traceSession, {
+          agentRuntime: runtime,
+          status: "error",
+          error: { message: err?.message, stack: err?.stack },
+        });
+        throw err;
+      }
+
+      await finalizeTraceSession(traceSession, {
+        agentRuntime: res.agent || runtime,
+        status: "success",
+      });
+
       const finalMsg = res.messages[res.messages.length - 1];
       let content = "";
       if (typeof finalMsg?.content === "string") content = finalMsg.content;

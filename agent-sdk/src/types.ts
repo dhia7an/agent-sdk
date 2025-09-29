@@ -56,9 +56,25 @@ export type SmartAgentLimits = {
   maxParallelTools?: number;
 };
 
+export type SmartAgentTraceUploadConfig = {
+  url: string;
+  headers?: Record<string, string>;
+};
+
+export type SmartAgentTracingConfig = {
+  enabled: boolean;
+  path?: string;
+  mode?: "batched" | "stream";
+  logData?: boolean;
+  upload?: SmartAgentTraceUploadConfig | null;
+  writeToFile?: boolean;
+  onLog?: (event: TraceEventRecord) => void;
+};
+
 export type SmartAgentOptions = {
   // Human-friendly agent name used in prompts and logging
   name?: string;
+  version?: string;
   model: any; // A BaseChatModel-like object with invoke(messages[]) => assistant message
   // Accept any tool implementation matching minimal ToolInterface (LangChain Tool compatible)
   tools?: Array<ToolInterface<any, any, any>>;
@@ -73,27 +89,167 @@ export type SmartAgentOptions = {
   useTodoList?: boolean;
   // Optional: normalize provider-specific usage into a common shape
   usageConverter?: (finalMessage: AIMessage, fullState: SmartState, model: any) => any;
-  // Debug logging options
-  debug?: {
-    enabled: boolean;
-    path?: string; // base directory for logs; defaults to <project_root>/logs
-    callback?: (entry: { sessionId: string; stepIndex: number; fileName: string; markdown: string }) => void;
-  };
   // Optional Zod schema for structured output; when provided, invoke() will attempt to parse
   // the final assistant content as JSON and validate it. Parsed value is returned as result.output
   // with full TypeScript inference.
   outputSchema?: ZodSchema<any>;
+  tracing?: SmartAgentTracingConfig;
 };
 
 // Runtime representation of an agent (used inside state.agent)
 export type AgentRuntimeConfig = {
   name?: string;
+  version?: string;
   model: any;
   tools: Array<ToolInterface<any, any, any>>;
   systemPrompt?: string;
   limits?: SmartAgentLimits;
   useTodoList?: boolean;
   outputSchema?: ZodSchema<any>;
+  tracing?: SmartAgentTracingConfig;
+};
+
+export type TraceMessageSection = {
+  id?: string;
+  kind: "message";
+  label: string;
+  role: string;
+  content: string;
+  metadata?: Record<string, any>;
+};
+
+export type TraceToolCallSection = {
+  id?: string;
+  kind: "tool_call";
+  label: string;
+  tool: string;
+  arguments?: any;
+};
+
+export type TraceToolResultItem = {
+  title?: string;
+  url?: string;
+  snippet?: string;
+  [key: string]: any;
+};
+
+export type TraceToolResultSection = {
+  id?: string;
+  kind: "tool_result";
+  label: string;
+  tool: string;
+  summary?: string;
+  items?: TraceToolResultItem[];
+  output?: any;
+};
+
+export type TraceToolResponseSection = {
+  id?: string;
+  kind: "tool_response";
+  label: string;
+  tool: string;
+  summary?: string;
+  items?: TraceToolResultItem[];
+  output?: any;
+};
+
+export type TraceSummarySection = {
+  id?: string;
+  kind: "summary";
+  label: string;
+  content: string;
+};
+
+export type TraceMetadataSection = {
+  id?: string;
+  kind: "metadata";
+  label: string;
+  data: Record<string, any>;
+};
+
+export type TraceDataSection =
+  | TraceMessageSection
+  | TraceToolCallSection
+  | TraceToolResultSection
+  | TraceToolResponseSection
+  | TraceSummarySection
+  | TraceMetadataSection;
+
+export type TraceEventRecord = {
+  sessionId: string;
+  id: string;
+  type: string;
+  label: string;
+  sequence: number;
+  timestamp: string;
+  actor?: { scope?: string; name?: string; role?: string; version?: string };
+  status: "success" | "error" | "skipped" | "retry";
+  durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cachedInputTokens?: number;
+  requestBytes?: number;
+  responseBytes?: number;
+  model?: string;
+  provider?: string;
+  toolExecutionId?: string;
+  retryOf?: string;
+  error?: { message: string; stack?: string } | null;
+  data?: { sections: TraceDataSection[] };
+  debug?: Record<string, any>;
+};
+
+export type TraceErrorRecord = {
+  eventId: string;
+  message: string;
+  stack?: string;
+  type?: string;
+  timestamp?: string;
+};
+
+export type TraceSessionSummary = {
+  totalDurationMs: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCachedInputTokens: number;
+  totalBytesIn: number;
+  totalBytesOut: number;
+  eventCounts: Record<string, number>;
+};
+
+export type TraceSessionStatus = "in_progress" | "success" | "error" | "partial";
+
+export type TraceSessionFile = {
+  sessionId: string;
+  startedAt: string;
+  endedAt?: string;
+  durationMs?: number;
+  agent?: { name?: string; version?: string; model?: string; provider?: string };
+  config: SmartAgentTracingConfig & { baseDir?: string };
+  summary: TraceSessionSummary;
+  events: TraceEventRecord[];
+  status: TraceSessionStatus;
+  errors: TraceErrorRecord[];
+};
+
+export type ResolvedTraceConfig = SmartAgentTracingConfig & {
+  path: string;
+  mode: "batched" | "stream";
+  logData: boolean;
+  writeToFile: boolean;
+};
+
+export type TraceSessionRuntime = {
+  sessionId: string;
+  baseDir: string;
+  sessionDir: string;
+  startedAt: number;
+  resolvedConfig: ResolvedTraceConfig;
+  events: TraceEventRecord[];
+  summary: TraceSessionSummary;
+  status: TraceSessionStatus;
+  errors: TraceErrorRecord[];
 };
 
 // Handoff descriptor returned from childAgent.asHandoff(...)

@@ -1,48 +1,133 @@
----
-title: Debugging & Logs
-nav_order: 10
-permalink: /debugging/
----
+# Tracing & observability
 
-# Debugging and Logs
+The SDK ships with a structured tracing pipeline that records every agent invocation as JSON. Traces capture model/tool calls, timing, token usage, and (optionally) full payloads so you can drive dashboards, analytics, or remote monitoring.
 
-Pass `debug: { enabled: true }` when creating the agent to capture rich Markdown traces.
+## Quick start
 
-## Log output
-
-Each invocation creates a directory `logs/<ISO_TIMESTAMP>/` containing step-indexed Markdown files. Every file includes:
-
-- Model name and invocation timestamp.
-- Limit configuration for the run.
-- Raw usage payload (if provided by the model) and aggregated totals.
-- Serialized tool definitions (names, descriptions, schemas).
-- Full message timeline grouped by role (system, user, assistant, tool, summarize).
-
-This format is designed for quick human inspection and works well with git diffs when comparing runs.
-
-## Intercepting logs programmatically
-
-Provide a `callback` instead of writing to disk:
+Enable tracing when creating your agent:
 
 ```ts
 const agent = createSmartAgent({
 	model,
 	tools,
-	debug: {
+	tracing: {
 		enabled: true,
-		callback(entry) {
-			console.log(`log step #${entry.stepIndex}`, entry.fileName);
-			// entry.markdown contains the full report
-			// entry.messages exposes the raw Message[] for custom visualization
+		logData: true,
+	},
+});
+```
+
+Each `invoke` creates a new session directory under `logs/<SESSION_ID>/` and writes `trace.session.json` once the run finishes.
+
+### Configuration
+
+| Option | Description |
+|--------|-------------|
+| `enabled` | Required. Turn tracing on/off per agent. |
+| `path` | Destination directory (defaults to `<cwd>/logs`). Created automatically. |
+| `logData` | When `true`, include prompt/response/tool payloads alongside metrics. Set to `false` to store only metadata. |
+| `upload` | `{ url, headers? }`. If provided, the finalized trace is `POST`ed to the URL. Headers remain in-memory and are not saved to disk. |
+| `writeToFile` | Default `true`. Set to `false` to skip writing `trace.session.json` locally (useful when you only upload or stream via `onLog`). |
+| `onLog` | Optional callback `(event) => void`. Receives every `TraceEventRecord` as soon as it’s recorded—handy for piping into custom dashboards or loggers. |
+
+Example with upload:
+
+```ts
+const agent = createSmartAgent({
+	model,
+	tools,
+	tracing: {
+		enabled: true,
+		path: "logs",
+		logData: false,
+		upload: {
+			url: "https://observability.example.com/trace",
+			headers: { Authorization: `Bearer ${process.env.TRACE_TOKEN}` },
 		},
 	},
 });
 ```
 
-When `callback` is set, no files are written – you decide where to persist or render the payload.
+## Session payload
 
-## Tips
+`trace.session.json` summarises the entire invocation:
 
-- Pair logs with `onEvent` to build streaming CLIs or dashboards.
-- Include summarized tool outputs in your UI (the logs show execution IDs you can feed back into `get_tool_response`).
-- Rotate or clean the `logs/` directory periodically if you run many invocations; the files are safe to delete.
+- **Session metadata** – `sessionId`, start/end timestamps, duration, and resolved tracing config (path, mode, logData, upload URL).
+- **Agent runtime** – name, version, model, and provider (when available).
+- **Summary** – aggregated token counts, byte totals, and per-event classifications.
+- **Events** – ordered list of model/tool/summarization events. Each record carries a stable `eventId`, a human-friendly `label`, status (`success`, `error`, `retry`, `skipped`), flattened metrics (`durationMs`, `inputTokens`, `outputTokens`, `requestBytes`, etc.), and optional tool identifiers.
+- **Errors** – flattened list of noteworthy errors (either per-event or session-level) for quick surfacing.
+
+When `logData` is `true`, payload sections expose sanitized snapshots under a `data.sections` array. Each section is one of a handful of kinds (`message`, `tool_call`, `tool_result`, `summary`, `metadata`) with concise, user-facing labels. Circular references, functions, and bigints are handled automatically. The optional `onLog` callback receives a cloned `TraceEventRecord` for every entry—perfect for streaming events into your own logger even when `writeToFile` is disabled.
+
+### Example structure
+
+```json
+{
+	"sessionId": "sess_pK4y6xQd2Z9LcvGk",
+	"startedAt": "2025-09-29T08:15:30.123Z",
+	"endedAt": "2025-09-29T08:15:35.412Z",
+	"durationMs": 5289,
+	"agent": { "name": "SupportAgent", "version": "2025.09", "model": "gpt-4.1-mini", "provider": "openai" },
+	"config": { "enabled": true, "path": "logs", "mode": "batched", "logData": true, "writeToFile": true, "baseDir": ".../logs" },
+	"summary": { "totalDurationMs": 3120, "totalInputTokens": 812, "totalOutputTokens": 431, "totalCachedInputTokens": 48, "totalBytesIn": 18240, "totalBytesOut": 9211, "eventCounts": { "ai_call": 2, "tool_call": 1 } },
+	"events": [
+		{
+			"id": "evt_0001_abcd",
+			"sessionId": "sess_pK4y6xQd2Z9LcvGk",
+			"type": "ai_call",
+			"label": "Assistant Response #1",
+			"sequence": 1,
+			"timestamp": "2025-09-29T08:15:30.987Z",
+			"actor": { "scope": "agent", "name": "SupportAgent", "role": "assistant", "version": "2025.09" },
+			"status": "success",
+			"durationMs": 1780,
+			"inputTokens": 320,
+			"outputTokens": 198,
+			"totalTokens": 518,
+			"cachedInputTokens": 12,
+			"requestBytes": 14280,
+			"responseBytes": 9211,
+			"model": "gpt-4.1-mini",
+			"provider": "openai",
+			"data": {
+				"sections": [
+					{
+						"id": "message-evt_0001_abcd-01",
+						"kind": "message",
+						"label": "User Prompt",
+						"role": "user",
+						"content": "How do I reset my password?"
+					},
+					{
+						"id": "message-evt_0001_abcd-02",
+						"kind": "message",
+						"label": "Assistant Response",
+						"role": "assistant",
+						"content": "Here are the steps to reset your password..."
+					}
+				]
+			}
+		}
+	],
+	"status": "success",
+	"errors": []
+}
+```
+
+## Operational tips
+
+- **Retention** – traces are plain JSON. Rotate or purge `logs/` on a schedule if you generate many sessions.
+- **Privacy** – disable `logData` when prompts contain sensitive information, or redact inside your own tooling before upload.
+- **Streaming** – `mode` is currently `"batched"` for all sessions. Streaming hooks are reserved for future versions.
+- **Correlation** – events include both `sessionId` and `eventId`, making it simple to join with other telemetry sources.
+
+## File layout
+
+```
+logs/
+	sess_pK4y6xQd2Z9LcvGk/
+		trace.session.json
+```
+
+Traces are safe to delete after ingestion. If you prefer remote storage, rely on the `upload` hook and periodically clear the local directory.

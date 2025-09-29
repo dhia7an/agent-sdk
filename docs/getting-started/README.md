@@ -27,7 +27,7 @@ You get a message-first loop with:
 - Planning/TODO mode, summarization, and context tools when using `createSmartAgent`.
 - Built-in multi-agent composition (`asTool`, `asHandoff`).
 - LangChain and MCP compatibility without hard dependencies.
-- Rich Markdown debugging logs.
+- Structured JSON tracing with optional payload capture.
 ## Install
 ```sh
 npm install @cognipeer/agent-sdk @langchain/core
@@ -71,7 +71,7 @@ const agent = createSmartAgent({
   tools: [echo],
   useTodoList: true,
   limits: { maxToolCalls: 5, maxToken: 6000 },
-  debug: { enabled: true },
+  tracing: { enabled: true },
 });
 
 const res = await agent.invoke({
@@ -85,7 +85,7 @@ What happens:
 1. A Zod-backed tool (`echo`) is registered.
 2. The smart agent injects a system prompt with planning rules and exposes the `manage_todo_list` + `get_tool_response` helpers.
 3. `invoke` runs the loop, executing tool calls until the assistant provides a final answer.
-4. Debug logs (if enabled) are written to `logs/<timestamp>/`.
+4. If tracing is enabled, a `trace.session.json` file is written under `logs/<session>/`.
 
 ## Option B: Minimal agent loop
 
@@ -150,12 +150,16 @@ limits: { maxToolCalls: 8, maxToken: 6000, contextTokenLimit: 4000, summaryToken
 ```
 Disable entirely by `summarization: false`.
 
-## Logging & debug
-Enable structured Markdown logs:
+## Tracing & observability
+Enable structured JSON traces:
 ```ts
-debug: { enabled: true }
+tracing: {
+  enabled: true,
+  writeToFile: true,       // set false to skip local disk
+  onLog: (event) => console.debug("trace", event.id, event.label),
+}
 ```
-Files appear under `logs/<timestamp>/`. Provide `callback` to intercept entries in memory.
+Files appear under `logs/<session>/trace.session.json` when `writeToFile` is `true`. Use `logData: false` for metrics-only output, `upload` to forward traces, or `onLog` to stream events directly into your logger.
 
 ## Quick capability tour
 
@@ -187,9 +191,9 @@ Proceed to:
 | Summarization not triggering | `maxToken` not reached or disabled | Lower `maxToken` or remove `summarization:false` |
 | Parsed output missing | Schema mismatch / invalid JSON | Inspect `res.content`, adjust prompt, broaden schema |
 | Handoff ignored | Tool not included | Ensure `handoffs` array includes the target agent |
-| Debug logs missing | `debug.enabled` false | Enable debug or set `debug.callback` |
+| Trace file missing | `tracing.enabled` false | Enable tracing or ensure the process can write to `logs/` |
 
-If stuck, enable debug logs and review the last agent + system messages.
+If stuck, enable tracing and review the most recent `trace.session.json` for error metadata.
 
 ## Running examples
 

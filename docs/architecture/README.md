@@ -39,7 +39,7 @@ Decisions about summarization or finalize insertion are factored into small "dec
 | contextTools.ts | Built-in planning + retrieval tools (`manage_todo_list`, `get_tool_response`) |
 | prompts.ts | System prompt construction & planning rules |
 | utils/tokenManager.ts | Token budget heuristics & compaction sizing |
-| utils/debugLogger.ts | Markdown log formatting & event emission helpers |
+| utils/tracing.ts | Trace session lifecycle, event recording, uploads, and helper utilities |
 | graph/decisions.ts | Summarization / finalize decision helpers |
 
 ## Message Flow (Conceptual Diagram)

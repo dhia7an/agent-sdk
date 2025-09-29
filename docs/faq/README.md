@@ -28,7 +28,7 @@ Yes. MCP adapter tools can be provided in the `tools` array like any LangChain t
 ## Why is my structured output not parsed?
 - Ensure `outputSchema` is a Zod schema (or object compatible with `parse`).
 - Confirm the model invoked the hidden `response` tool; if it didn’t, inspect the final assistant message and adjust prompting.
-- Check the debug log – look for `__structuredOutputParsed` in `ctx` or errors inside tool responses.
+- Check the trace session – look for `metadata.error` entries or `__structuredOutputParsed` flags inside events.
 
 ## How do I inspect raw tool outputs after summarization?
 Call the `get_tool_response` tool with the `executionId` printed in the summarized message (e.g. `SUMMARIZED executionId:'abc123'`). The agent will return the original payload from `toolHistoryArchived`.
@@ -36,7 +36,7 @@ Call the `get_tool_response` tool with the `executionId` printed in the summariz
 ## Why do I see “Skipped tool due to tool-call limit”? 
 The assistant proposed additional tool calls after hitting `limits.maxToolCalls`. Increase the limit or refine your prompts to encourage earlier final answers. The skip is intentional to force the next turn to respond directly.
 
-## Logs aren't showing up
-- Verify `debug: { enabled: true }` was passed.
-- If you provided `debug.callback`, no files are written – log inside the callback instead.
-- Confirm your process has write access to the working directory when using file output.
+## Traces aren't showing up
+- Verify `tracing: { enabled: true }` was passed.
+- Confirm your process has write access to the tracing path (defaults to `<cwd>/logs`).
+- If you configured `upload`, check the HTTP response codes in your application logs; failed uploads are recorded in the session `errors` array.

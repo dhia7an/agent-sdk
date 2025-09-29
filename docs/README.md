@@ -19,7 +19,7 @@ Welcome! The `docs/` folder powers the GitHub Pages site. Everything here is mar
 - `prompts/` – system prompt composition, planning rules, extra instructions.
 - `examples/` – capability matrix mapped to the repo’s example folders.
 - `limits-tokens/` – token heuristics, summarization controls, limit trade-offs.
-- `debugging/` – Markdown logs, `debug.callback`, and quick triage tips.
+- `debugging/` – Structured tracing, payload capture, and upload configuration.
 - `tool-development/` – advanced tooling patterns, payload sizing, and safety.
 - `faq/` – common integration questions and troubleshooting notes.
 

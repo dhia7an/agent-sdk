@@ -74,7 +74,7 @@ await expect(weather.func(input)).resolves.toMatchObject({ city: "Berlin" });
 For fake/offline mode, stub network calls with deterministic fixtures.
 
 ## Observability
-Emit relevant metadata within the returned object if it aids debugging (e.g. `source: 'cache'`). Keep it concise.
+Emit relevant metadata within the returned object if it aids observability (e.g. `source: 'cache'`). Keep it concise.
 
 ## Patterns
 | Pattern | Description | When to Use |

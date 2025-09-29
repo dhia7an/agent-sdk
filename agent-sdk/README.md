@@ -1,6 +1,6 @@
 # @cognipeer/agent-sdk
 
-Composable, message-first agent runtime with token-aware summarization, optional planning, and tool debugging baked in. Ships both ESM and CJS builds with full TypeScript types. LangChain is fully optional via a duck-typed adapter.
+Composable, message-first agent runtime with token-aware summarization, optional planning, and first-class tracing baked in. Ships both ESM and CJS builds with full TypeScript types. LangChain is fully optional via a duck-typed adapter.
 
 ## Features
 
@@ -10,7 +10,7 @@ Composable, message-first agent runtime with token-aware summarization, optional
 - **Structured output** – pass a Zod schema to add a hidden `response` finalize tool and receive parsed JSON on `result.output`.
 - **Multi-agent composition** – reuse agents via `asTool` or transfer control mid-run via `asHandoff`.
 - **Usage normalization** – provider usage blobs are normalized and aggregated per model turn.
-- **Rich logging** – enable `debug.enabled` to emit Markdown snapshots under `logs/` or intercept them via `debug.callback`.
+- **Structured tracing** – enable `tracing.enabled` to emit JSON traces (with optional payload capture and uploads) under `logs/`.
 
 ## Install
 
@@ -136,7 +136,7 @@ Exports from `dist/index.*`:
 - `summarization`: set to `false` to disable summarization entirely.
 - `outputSchema`: Zod schema for structured output parse + finalize tool.
 - `usageConverter`: hook to normalize provider-specific usage shapes.
-- `debug`: `{ enabled: boolean, path?, callback? }` for Markdown logs.
+- `tracing`: `{ enabled: boolean, path?, logData?, upload? }` for JSON trace sessions and optional HTTP uploads.
 - `onEvent`: receive `tool_call`, `plan`, `summarization`, `metadata`, `handoff`, and `finalAnswer` events per invoke.
 
 ### Structured output finalize
@@ -149,15 +149,16 @@ When `outputSchema` is provided, the framework injects a hidden `response` tool.
 - When the next model turn would exceed `limits.maxToken`, the contextSummarize node chunk-summarizes tool responses into concise briefs while archiving originals in `state.toolHistoryArchived`.
 - `get_tool_response` lets the model request the raw payload later using `executionId`.
 
-## Debugging
+## Tracing & observability
 
-Enable logging with `debug.enabled: true`. By default Markdown files are written to `logs/<ISO_TIMESTAMP>/` containing:
+Enable tracing with `tracing: { enabled: true }`. Each invocation writes `trace.session.json` into `logs/<SESSION_ID>/` containing:
 
-- Model name, invocation limits, and raw usage (if reported).
-- Serialized tool schemas.
-- Message timeline with assistant/tool turns.
+- Agent name/version, model/provider, limits, timing, and usage metadata
+- Ordered events for model calls, tool executions, summarization passes, and errors
+- Optional payload sections when `logData` is `true` so you can inspect prompts, responses, and tool bodies
+- Aggregated token totals and error summaries for quick dashboards
 
-Provide `debug.callback` to receive the same payload programmatically (no files written).
+Set `logData: false` to keep just metrics, or provide `upload: { url, headers? }` to POST the trace JSON to your observability API after each run. Upload headers are never persisted alongside the trace.
 
 ## Build
 

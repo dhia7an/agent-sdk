@@ -34,7 +34,7 @@ const agent = createSmartAgent({
   tools,
   useTodoList: true,
   limits: { maxToolCalls: 10, maxToken: 6000 },
-  debug: { enabled: true },
+  tracing: { enabled: true },
 });
 
 try {

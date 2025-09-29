@@ -27,4 +27,4 @@ Required environment variables:
 - `OPENAI_API_KEY` – needed for all OpenAI-backed examples.
 - `TAVILY_API_KEY` – optional; enables real Tavily results in `tools/` and the MCP example.
 
-Tip: after running an example with `debug.enabled: true`, inspect the generated logs under `logs/<timestamp>/` to see the full agent transcript.
+Tip: enable `tracing.enabled: true` while testing and review `logs/<session>/trace.session.json` for full event history, payloads, and usage details.

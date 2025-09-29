@@ -1,7 +1,14 @@
 import { Tool, type ToolInterface } from "@langchain/core/tools";
-import type { SmartAgentEvent, SmartAgentOptions, SmartState, HandoffDescriptor, AgentRuntimeConfig } from "../types.js";
+import type {
+  SmartAgentEvent,
+  SmartAgentOptions,
+  SmartState,
+  HandoffDescriptor,
+  AgentRuntimeConfig,
+} from "../types.js";
 import { nanoid } from "nanoid";
 import { ToolMessage } from "@langchain/core/messages";
+import { recordTraceEvent, sanitizeTracePayload, estimatePayloadBytes } from "../utils/tracing.js";
 
 export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>>, opts?: SmartAgentOptions) {
   const baseToolByName = new Map<string, ToolInterface>();
@@ -26,8 +33,9 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
     };
     const appended: ToolMessage[] = [];
     const onEvent = (state.ctx as any)?.__onEvent as ((e: SmartAgentEvent) => void) | undefined;
+    const traceSession = (state.ctx as any)?.__traceSession;
     // Sync latest state into context tools if they carry a stateRef
-  for (const t of toolByName.values()) {
+    for (const t of toolByName.values()) {
       const anyT: any = t as any;
       if (anyT._stateRef && typeof anyT._stateRef === "object") {
         anyT._stateRef.toolHistory = state.toolHistory;
@@ -43,7 +51,7 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
       ? last.tool_calls
       : [];
 
-    
+
     const toolHistory = state.toolHistory || [];
     // Enforce global maxToolCalls across turns
     const remaining = Math.max(0, limits.maxToolCalls - toolCount);
@@ -53,6 +61,32 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
     // Emit immediate messages for any skipped due to limit
     for (const tc of skipped) {
       onEvent?.({ type: "tool_call", phase: "skipped", name: tc.name, id: tc.id, args: tc.args });
+      const sanitizedArgs = sanitizeTracePayload(tc.args);
+      const messageList = [
+        {
+          role: "assistant",
+          name: tc.name,
+          content: `Skipped tool due to tool-call limit: ${tc.name}`,
+          tool_calls: [
+            {
+              id: tc.id,
+              type: "function",
+              function: {
+                name: tc.name,
+                arguments: sanitizedArgs,
+              },
+            },
+          ],
+        },
+      ];
+      recordTraceEvent(traceSession, {
+        type: "tool_call",
+        label: `Tool Skipped - ${tc.name}`,
+        actor: { scope: "tool", name: tc.name, role: "tool" },
+        status: "skipped",
+        toolExecutionId: tc.id,
+        messageList,
+      });
       appended.push(new ToolMessage({
         content: `Skipped tool due to tool-call limit: ${tc.name}`,
         tool_call_id: tc.id || `${tc.name}_${appended.length}`,
@@ -79,9 +113,11 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
       if (typeof args === "string") {
         try { args = JSON.parse(args); } catch (_) { /* keep as string */ }
       }
+      const start = Date.now();
       try {
-        const start = Date.now();
         onEvent?.({ type: "tool_call", phase: "start", name: (t as any).name, id: tc.id, args });
+        const sanitizedArgs = sanitizeTracePayload(args);
+        const inputBytes = traceSession?.resolvedConfig.logData ? estimatePayloadBytes(sanitizedArgs) : undefined;
         let output: any;
         const anyTool = t as any;
         if (typeof anyTool.func === "function") output = await anyTool.func(args);
@@ -109,16 +145,91 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           state.ctx.__structuredOutputParsed = output.data;
           state.ctx.__finalizedDueToStructuredOutput = true;
         }
+        const durationMs = Date.now() - start;
         const executionId = nanoid();
         toolHistory.push({ executionId, toolName: (t as any).name, args, output, rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
         appended.push(new ToolMessage({ content, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));
-        onEvent?.({ type: "tool_call", phase: "success", name: (t as any).name, id: tc.id, args, result: output, durationMs: Date.now() - start });
+        onEvent?.({ type: "tool_call", phase: "success", name: (t as any).name, id: tc.id, args, result: output, durationMs });
+
+        const sanitizedOutput = sanitizeTracePayload(output);
+        const outputBytes = traceSession?.resolvedConfig.logData ? estimatePayloadBytes(sanitizedOutput) : undefined;
+        const toolName = (t as any).name || tc.name;
+        const messageList = [
+          {
+            role: "assistant",
+            name: toolName,
+            content: "",
+            tool_calls: [
+              {
+                id: tc.id || executionId,
+                type: "function",
+                function: {
+                  name: toolName,
+                  arguments: sanitizedArgs,
+                },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            name: toolName,
+            content: sanitizedOutput ?? output ?? "",
+          },
+        ];
+        recordTraceEvent(traceSession, {
+          type: "tool_call",
+          label: `Tool Execution - ${toolName}`,
+          actor: { scope: "tool", name: toolName, role: "tool" },
+          durationMs,
+          requestBytes: inputBytes,
+          responseBytes: outputBytes,
+          toolExecutionId: executionId,
+          messageList,
+        });
         toolCount += 1;
       } catch (e: any) {
+        const durationMs = Date.now() - start;
         const executionId = nanoid();
         toolHistory.push({ executionId, toolName: (t as any).name, args, output: `Error executing tool: ${e?.message || String(e)}`, rawOutput: null, timestamp: new Date().toISOString(), tool_call_id: tc.id });
         appended.push(new ToolMessage({ content: `Error executing tool: ${e?.message || String(e)}`, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));
         onEvent?.({ type: "tool_call", phase: "error", name: (t as any).name, id: tc.id, args, error: { message: e?.message || String(e) } });
+        const sanitizedArgs = sanitizeTracePayload(args);
+        const inputBytes = traceSession?.resolvedConfig.logData ? estimatePayloadBytes(sanitizedArgs) : undefined;
+        const toolName = (t as any).name || tc.name;
+        const errorMessage = e?.message || String(e);
+        const messageList = [
+          {
+            role: "assistant",
+            name: toolName,
+            content: "",
+            tool_calls: [
+              {
+                id: tc.id || executionId,
+                type: "function",
+                function: {
+                  name: toolName,
+                  arguments: sanitizedArgs,
+                },
+              },
+            ],
+          },
+          {
+            role: "tool",
+            name: toolName,
+            content: `Error executing tool: ${errorMessage}`,
+          },
+        ];
+        recordTraceEvent(traceSession, {
+          type: "tool_call",
+          label: `Tool Error - ${toolName}`,
+          actor: { scope: "tool", name: toolName, role: "tool" },
+          status: "error",
+          durationMs,
+          requestBytes: inputBytes,
+          toolExecutionId: executionId,
+          error: { message: e?.message || String(e), stack: e?.stack },
+          messageList,
+        });
         toolCount += 1;
       }
     };
@@ -130,6 +241,6 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
       await Promise.all(batch.map(runOne));
     }
 
-  return { messages: [...state.messages, ...appended], toolCallCount: toolCount, toolHistory, agent: state.agent };
+    return { messages: [...state.messages, ...appended], toolCallCount: toolCount, toolHistory, agent: state.agent };
   };
 }
