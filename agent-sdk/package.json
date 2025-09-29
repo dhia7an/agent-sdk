@@ -48,5 +48,17 @@
     "tsup": "^8.1.0",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
-  }
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cognipeer/agent-sdk.git"
+  },
+  "author": "cognipeer",
+  "bugs": {
+    "url": "https://github.com/Cognipeer/agent-sdk/issues"
+  },
+  "homepage": "https://github.com/Cognipeer/agent-sdk#readme"
 }
