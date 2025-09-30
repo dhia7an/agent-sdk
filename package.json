@@ -16,7 +16,9 @@
   "preexample:handoff": "npm run build",
   "example:handoff": "tsx examples/handoff/handoff.ts",
   "preexample:image-generation": "npm run build",
-  "example:image-generation": "tsx examples/image-generation/image-generation.ts"
+  "example:image-generation": "tsx examples/image-generation/image-generation.ts",
+  "preexample:guardrails": "npm run build",
+  "example:guardrails": "tsx examples/guardrails/guardrails.ts"
   },
   "devDependencies": {
     "tsx": "^4.16.2",

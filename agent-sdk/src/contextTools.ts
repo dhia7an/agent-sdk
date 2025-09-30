@@ -78,7 +78,7 @@ export function createContextTools(
         // Validate directly against provided schema
         try {
           const validated = opts.outputSchema.parse ? opts.outputSchema.parse(data) : data;
-          // store parsed in a sentinel for toolsNode to pick up (toolsNode already looks for __finalStructuredOutput?)
+          // store parsed result for toolsNode to pick up (toolsNode already looks for __finalStructuredOutput?)
           return { __finalStructuredOutput: true, data: validated };
         } catch (e: any) {
           return { error: 'Schema validation failed', details: e?.message };

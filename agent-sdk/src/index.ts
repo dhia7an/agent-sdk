@@ -11,8 +11,10 @@ export * from "./utils/tokenManager.js";
 export * from "./utils/utilTokens.js";
 export * from "./contextTools.js";
 export * from "./smart/index.js";
+export * from "./guardrails/index.js";
 export { fromLangchainTools } from "./adapters/langchain.js";
 export { fileSink, customSink, cognipeerSink, httpSink } from "./utils/tracing.js";
+export { GuardrailPhase } from "./types.js";
 export type {
 	SmartAgentOptions,
 	SmartAgentLimits,
@@ -41,6 +43,13 @@ export type {
 	TraceSinkHttpConfig,
 	TraceSinkSnapshot,
 	TraceSessionConfigSnapshot,
+	ConversationGuardrail,
+	GuardrailOutcome,
+	GuardrailIncident,
+	GuardrailRule,
+	GuardrailContext,
+	GuardrailDisposition,
+	GuardrailEvent,
 } from "./types.js";
 // Agent* aliases for migration
 export type { AgentOptions, AgentLimits, AgentState, AgentEvent, AgentResult, AgentInstance } from "./types.js";

@@ -41,6 +41,69 @@ export type AIMessage = BaseMessage & { role: 'assistant' };
 
 export type Message = BaseMessage; // maintain alias used elsewhere
 
+export enum GuardrailPhase {
+  Request = "request",
+  Response = "response",
+}
+
+export type GuardrailDisposition = "block" | "warn" | "allow";
+
+export type GuardrailContext = {
+  phase: GuardrailPhase;
+  messages: Message[];
+  latestMessage?: Message;
+  state: SmartState;
+  runtime?: AgentRuntimeConfig;
+  options: SmartAgentOptions;
+};
+
+export type GuardrailRuleResult = {
+  passed: boolean;
+  reason?: string;
+  details?: Record<string, any>;
+  disposition?: GuardrailDisposition;
+};
+
+export type GuardrailRule = {
+  id?: string;
+  title?: string;
+  description?: string;
+  evaluate: (
+    context: GuardrailContext
+  ) => Promise<GuardrailRuleResult> | GuardrailRuleResult;
+  metadata?: Record<string, any>;
+};
+
+export type GuardrailIncident = {
+  guardrailId?: string;
+  guardrailTitle?: string;
+  ruleId?: string;
+  ruleTitle?: string;
+  phase: GuardrailPhase;
+  reason?: string;
+  details?: Record<string, any>;
+  disposition: GuardrailDisposition;
+};
+
+export type ConversationGuardrail = {
+  id?: string;
+  title?: string;
+  description?: string;
+  appliesTo: GuardrailPhase[];
+  rules: GuardrailRule[];
+  haltOnViolation?: boolean;
+  onViolation?: (
+    incident: GuardrailIncident,
+    context: GuardrailContext
+  ) => Promise<GuardrailDisposition | void> | GuardrailDisposition | void;
+  metadata?: Record<string, any>;
+};
+
+export type GuardrailOutcome = {
+  ok: boolean;
+  incidents: GuardrailIncident[];
+};
+
 export type SmartAgentLimits = {
   maxToolCalls?: number;
   toolOutputTokenLimit?: number;
@@ -98,6 +161,8 @@ export type SmartAgentOptions = {
   model: any; // A BaseChatModel-like object with invoke(messages[]) => assistant message
   // Accept any tool implementation matching minimal ToolInterface (LangChain Tool compatible)
   tools?: Array<ToolInterface<any, any, any>>;
+  // Optional guard layer descriptors to evaluate before sending requests and after receiving responses
+  guardrails?: ConversationGuardrail[];
   // Predefined handoff targets exposed as tools automatically
   handoffs?: HandoffDescriptor<any, any, any>[];
   limits?: SmartAgentLimits;
@@ -122,6 +187,7 @@ export type AgentRuntimeConfig = {
   version?: string;
   model: any;
   tools: Array<ToolInterface<any, any, any>>;
+  guardrails?: ConversationGuardrail[];
   systemPrompt?: string;
   limits?: SmartAgentLimits;
   useTodoList?: boolean;
@@ -350,6 +416,7 @@ export type SmartState = {
     }>;
     totals: Record<string, { input: number; output: number; total: number; cachedInput: number }>;
   };
+  guardrailResult?: GuardrailOutcome;
 };
 
 // Event types for observability and future streaming support
@@ -398,13 +465,26 @@ export type HandoffEvent = {
   toolName: string;
 };
 
+export type GuardrailEvent = {
+  type: "guardrail";
+  phase: GuardrailPhase;
+  guardrailId?: string;
+  guardrailTitle?: string;
+  ruleId?: string;
+  ruleTitle?: string;
+  disposition: GuardrailDisposition;
+  reason?: string;
+  details?: Record<string, any>;
+};
+
 export type SmartAgentEvent =
   | ToolCallEvent
   | PlanEvent
   | SummarizationEvent
   | FinalAnswerEvent
   | MetadataEvent
-  | HandoffEvent;
+  | HandoffEvent
+  | GuardrailEvent;
 
 export type InvokeConfig = RunnableConfig & {
   // Optional per-call event hook (overrides SmartAgentOptions.onEvent if provided)

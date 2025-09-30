@@ -10,10 +10,12 @@ export function createAgentCoreNode(opts: SmartAgentOptions) {
       version: opts.version,
       model: opts.model,
       tools: (opts.tools as any) || [],
+      guardrails: (opts as any).guardrails,
       systemPrompt: undefined,
       limits: opts.limits,
       useTodoList: undefined,
       outputSchema: (opts as any).outputSchema,
+      tracing: opts.tracing,
     };
 
     const tools: Array<ToolInterface<any, any, any>> = (runtime.tools as any) ?? [];

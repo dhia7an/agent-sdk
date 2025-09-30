@@ -37,6 +37,7 @@ API & Building Blocks
 - [Tools](tools/) – Authoring tools with Zod and plugging in LangChain or MCP tools.
 - [Prompts](prompts/) – System prompt construction and planning rules.
 - [Structured Output](structured-output/) – Finalize tool workflow, parsing, and recovery options.
+- [Guardrails](guardrails/) – Conversation guardrails, built-in checks, and preset helpers.
 - [Tool Development](tool-development/) – Advanced authoring patterns and safeguards.
 
 Capabilities & Operations
@@ -61,6 +62,7 @@ Capabilities & Operations
 | `multi-agent` | Agent-as-tool | Delegation via `agent.asTool`. |
 | `handoff` | Runtime handoff | Transfers control between agents. |
 | `mcp-tavily` | MCP tools | Demonstrates remote MCP tool usage. |
+| `guardrails` | Policy enforcement | Guardrails blocking secrets and code responses. |
 | `vision` | Multimodal input | Sends text + image parts through the adapter. |
 
 ## Design principles

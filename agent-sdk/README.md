@@ -11,6 +11,7 @@ Composable, message-first agent runtime with token-aware summarization, optional
 - **Multi-agent composition** – reuse agents via `asTool` or transfer control mid-run via `asHandoff`.
 - **Usage normalization** – provider usage blobs are normalized and aggregated per model turn.
 - **Structured tracing** – enable `tracing.enabled` to emit JSON traces (with optional payload capture and configurable sinks) under `logs/`.
+- **Conversation guardrails** – plug regex, JSON schema, code detection, agent verdicts, or custom callbacks to guard requests/responses.
 
 ## Install
 
@@ -134,9 +135,10 @@ Exports from `dist/index.*`:
 - `useTodoList`: enable planning rules and `manage_todo_list` tool.
 - `summarization`: set to `false` to disable summarization entirely.
 - `outputSchema`: Zod schema for structured output parse + finalize tool.
+- `guardrails`: array of conversation guardrails applied to outbound requests and inbound responses.
 - `usageConverter`: hook to normalize provider-specific usage shapes.
 - `tracing`: `{ enabled: boolean, logData?, sink? }` for JSON trace sessions routed to file/HTTP/Cognipeer/custom sinks.
-- `onEvent`: receive `tool_call`, `plan`, `summarization`, `metadata`, `handoff`, and `finalAnswer` events per invoke.
+- `onEvent`: receive `tool_call`, `plan`, `summarization`, `metadata`, `handoff`, `guardrail`, and `finalAnswer` events per invoke.
 
 ### Structured output finalize
 

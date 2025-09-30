@@ -1,5 +1,6 @@
 // A minimal agent builder: no system prompt, no summarization, with tool limit and optional structured output finalize.
-import type { AgentResult as AgentInvokeResult, InvokeConfig, AgentEvent as SmartAgentEvent, AgentOptions as SmartAgentOptions, AgentState as SmartState, AgentInstance as SmartAgentInstance, AgentRuntimeConfig, HandoffDescriptor } from "./types.js";
+import type { AgentResult as AgentInvokeResult, InvokeConfig, AgentEvent as SmartAgentEvent, AgentOptions as SmartAgentOptions, AgentState as SmartState, AgentInstance as SmartAgentInstance, AgentRuntimeConfig, HandoffDescriptor, GuardrailOutcome } from "./types.js";
+import { GuardrailPhase } from "./types.js";
 import { z, ZodSchema } from "zod";
 import { createResolverNode } from "./nodes/resolver.js";
 import { createAgentCoreNode } from "./nodes/agentCore.js";
@@ -7,6 +8,7 @@ import { createToolsNode } from "./nodes/tools.js";
 import { createToolLimitFinalizeNode } from "./nodes/toolLimitFinalize.js";
 import { createTool } from "./tool.js";
 import { createTraceSession, finalizeTraceSession } from "./utils/tracing.js";
+import { evaluateGuardrails } from "./guardrails/engine.js";
 
 type LiteMessage = { role: string; content: any; name?: string; [k: string]: any };
 const human = (content: any): LiteMessage => ({ role: 'user', content });
@@ -28,7 +30,56 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
   const toolsNode = createToolsNode(toolsBase, opts);
   const finalizeNode = createToolLimitFinalizeNode(opts);
 
-  async function runLoop(initial: SmartState, config?: InvokeConfig): Promise<SmartState> {
+  type GuardrailStore = { lastRequestLength: number; lastResponseLength: number };
+
+  const mergeGuardrailOutcomes = (
+    prev: GuardrailOutcome | undefined,
+    next: GuardrailOutcome
+  ): GuardrailOutcome => {
+    if (!prev) return next;
+    return {
+      ok: prev.ok && next.ok,
+      incidents: [...prev.incidents, ...next.incidents],
+    };
+  };
+
+  const ensureGuardrailStore = (state: SmartState): GuardrailStore => {
+    const ctx = (state.ctx = state.ctx || {});
+    const existing = (ctx.__guardrailStore as GuardrailStore | undefined) || {
+      lastRequestLength: -1,
+      lastResponseLength: -1,
+    };
+    ctx.__guardrailStore = existing;
+    return existing;
+  };
+
+  const getGuardrailConfig = (state: SmartState) => {
+    const agentGuardrails = state.agent?.guardrails;
+    return Array.isArray(agentGuardrails)
+      ? agentGuardrails
+      : Array.isArray(opts.guardrails)
+      ? opts.guardrails
+      : [];
+  };
+
+  const runtime: AgentRuntimeConfig = {
+    name: opts.name,
+    version: opts.version,
+    model: opts.model,
+    tools: toolsBase,
+    guardrails: opts.guardrails,
+    systemPrompt: undefined,
+    limits: opts.limits,
+    useTodoList: undefined,
+    outputSchema: opts.outputSchema as any,
+    tracing: opts.tracing,
+  };
+
+  async function runLoop(
+    initial: SmartState,
+    config: InvokeConfig | undefined,
+    emit?: (event: SmartAgentEvent) => void
+  ): Promise<SmartState> {
     let state = await resolver(initial);
     const maxToolCalls = (opts.limits?.maxToolCalls ?? 10) as number;
     const iterationLimit = Math.max(maxToolCalls * 3 + 10, 40);
@@ -37,8 +88,100 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
     while (iterations < iterationLimit) {
       iterations++;
 
+      const preGuardrails = getGuardrailConfig(state);
+      if (preGuardrails.length > 0) {
+        const store = ensureGuardrailStore(state);
+        if (store.lastRequestLength !== state.messages.length) {
+          const outcome = await evaluateGuardrails({
+            guardrails: preGuardrails,
+            phase: GuardrailPhase.Request,
+            state,
+            runtime: state.agent || runtime,
+            options: opts,
+            emit,
+          });
+          store.lastRequestLength = state.messages.length;
+          state.guardrailResult = mergeGuardrailOutcomes(state.guardrailResult, outcome);
+          const blocking = outcome.incidents.find((incident) => incident.disposition === "block");
+          if (blocking) {
+            const guardMessage: any = {
+              role: "assistant",
+              name: "guardrail",
+              content: blocking.reason || "Request blocked by guardrail policy.",
+              metadata: {
+                guardrail: {
+                  phase: GuardrailPhase.Request,
+                  incidents: outcome.incidents,
+                },
+              },
+            };
+            state = { ...state, messages: [...state.messages, guardMessage] } as SmartState;
+            const ctx = (state.ctx = state.ctx || {});
+            (ctx as any).__guardrailBlocked = {
+              phase: GuardrailPhase.Request,
+              incident: blocking,
+            };
+            break;
+          }
+        }
+      }
+
       // Agent step
       state = { ...state, ...(await agentCore(state)) } as SmartState;
+
+      const postGuardrails = getGuardrailConfig(state);
+      if (postGuardrails.length > 0) {
+        const store = ensureGuardrailStore(state);
+        if (store.lastResponseLength !== state.messages.length) {
+          const outcome = await evaluateGuardrails({
+            guardrails: postGuardrails,
+            phase: GuardrailPhase.Response,
+            state,
+            runtime: state.agent || runtime,
+            options: opts,
+            emit,
+          });
+          store.lastResponseLength = state.messages.length;
+          state.guardrailResult = mergeGuardrailOutcomes(state.guardrailResult, outcome);
+          const blocking = outcome.incidents.find((incident) => incident.disposition === "block");
+          if (blocking) {
+            const updatedMessages = [...state.messages];
+            const replaced = updatedMessages.pop();
+            updatedMessages.push({
+              role: "assistant",
+              name: "guardrail",
+              content: blocking.reason || "Response blocked by guardrail policy.",
+              metadata: {
+                guardrail: {
+                  phase: GuardrailPhase.Response,
+                  incidents: outcome.incidents,
+                  replaced,
+                },
+              },
+            } as any);
+            state = { ...state, messages: updatedMessages } as SmartState;
+            const ctx = (state.ctx = state.ctx || {});
+            (ctx as any).__guardrailBlocked = {
+              phase: GuardrailPhase.Response,
+              incident: blocking,
+              replaced,
+            };
+            break;
+          } else if (outcome.incidents.length > 0) {
+            const last = state.messages[state.messages.length - 1] as any;
+            if (last) {
+              last.metadata = {
+                ...(last.metadata || {}),
+                guardrail: {
+                  phase: GuardrailPhase.Response,
+                  incidents: outcome.incidents,
+                },
+              };
+            }
+          }
+        }
+      }
+
       const lastMsg: any = state.messages[state.messages.length - 1];
       const toolCalls: any[] = Array.isArray(lastMsg?.tool_calls) ? lastMsg.tool_calls : [];
       const toolCallCount = state.toolCallCount || 0;
@@ -62,17 +205,6 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
 
     return state;
   }
-
-  const runtime: AgentRuntimeConfig = {
-    name: opts.name,
-    version: opts.version,
-    model: opts.model,
-    tools: toolsBase,
-    systemPrompt: undefined,
-    limits: opts.limits,
-    useTodoList: undefined,
-    outputSchema: opts.outputSchema as any,
-  };
 
   const instance: SmartAgentInstance<TOutput> = {
     invoke: async (input: SmartState, config?: InvokeConfig): Promise<AgentInvokeResult<TOutput>> => {
@@ -100,7 +232,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
 
       let res: SmartState;
       try {
-        res = await runLoop(initial, config);
+        res = await runLoop(initial, config, emit);
       } catch (err: any) {
         await finalizeTraceSession(traceSession, {
           agentRuntime: runtime,

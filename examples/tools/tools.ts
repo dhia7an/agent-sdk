@@ -61,7 +61,7 @@ const agent = createAgent({
     limits: { maxToolCalls: 10 },
     tracing: {
         enabled: true,
-        sink: cognipeerSink("http://localhost:8080/v1/client/tracing/sessions", "sl0eedeendwvu1fkedba9vyd7edhhksmv6vtigpkmwlk7zqogenyj8epqxfb")
+        sink: cognipeerSink("wl4hzjlhnlxfgbzlg91wpknl3tvbtj7mgnmgjhioo8ojimrx5pjsou1eu70s")
     },
 });
 
