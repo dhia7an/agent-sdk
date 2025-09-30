@@ -4,7 +4,7 @@ import { z } from "zod";
 
 // Preflight env checks to provide clearer errors during local runs
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const TAVILY_API_KEY = "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";
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY || "";
 if (!OPENAI_API_KEY) {
     console.error("Missing OPENAI_API_KEY. Set it before running: export OPENAI_API_KEY=sk-...\n(Optional) Set TAVILY_API_KEY if you plan to use tavily_search.");
     process.exit(1);
