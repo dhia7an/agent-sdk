@@ -36,7 +36,7 @@ Highlights:
 - **Structured output** – provide a Zod schema and the agent injects a finalize tool to capture JSON deterministically.
 - **Multi-agent and handoffs** – wrap agents as tools or transfer control mid-run with `asTool` / `asHandoff`.
 - **Usage + events** – normalize provider usage, surface `tool_call`, `plan`, `summarization`, `metadata`, and `handoff` events.
-- **Structured tracing** – optional per-invoke JSON traces with metadata, payload capture, upload hooks, and archival on disk.
+- **Structured tracing** – optional per-invoke JSON traces with metadata, payload capture, and pluggable sinks (file, HTTP, Cognipeer, custom).
 
 ## What’s inside
 
@@ -64,11 +64,11 @@ You can also bring your own model adapter as long as it exposes `invoke(messages
 ### Smart agent (planning + summarization)
 
 ```ts
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back user text",
   schema: z.object({ text: z.string().min(1) }),
@@ -183,8 +183,7 @@ Exported helpers (`agent-sdk/src/index.ts`):
 
 - `createSmartAgent(options)`
 - `createAgent(options)`
-- `createSmartTool({ name, description?, schema, func })`
-- `createTool(...)` (alias)
+- `createTool({ name, description?, schema, func })`
 - `fromLangchainModel(model)`
 - `withTools(model, tools)`
 - `buildSystemPrompt(extra?, planning?, name?)`
@@ -201,7 +200,7 @@ Enable tracing by passing `tracing: { enabled: true }`. Each invocation writes `
 - Optional payload captures (request/response/tool bodies) when `logData` is `true`
 - Aggregated token usage, byte counts, and error summaries for dashboards
 
-You can disable payload capture with `logData: false` to keep only metrics, or configure `upload: { url, headers? }` to POST the JSON trace to your observability API immediately after the run. Headers are kept in-memory and never written alongside the trace.
+You can disable payload capture with `logData: false` to keep only metrics, or configure sinks such as `httpSink(url, headers?)`, `cognipeerSink(apiKey, url?)`, or `customSink({ onEvent, onSession })` to forward traces after each run. Sensitive headers/callbacks remain in-memory and are never written alongside the trace.
 
 ## Development
 

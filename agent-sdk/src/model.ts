@@ -3,6 +3,8 @@
 // different framework specific models (LangChain, OpenAI SDK, Anthropic, etc.)
 // can be adapted without adding hard dependencies.
 
+import { toLangchainTools } from "./adapters/langchain.js";
+
 export interface BaseChatMessagePart {
   type?: string; // e.g. 'text'
   text?: string;
@@ -109,12 +111,15 @@ export function fromLangchainModel(lcModel: any): BaseChatModel {
       return { role: 'assistant', content: String(response ?? '') };
     },
     bindTools: (tools: any[]) => {
-      // LangChain ChatModel commonly has .bindTools
+      const lcReady = toLangchainTools(tools);
       if (typeof lcModel.bindTools === 'function') {
-        const bound = lcModel.bindTools(tools);
+        const bound = lcModel.bindTools(lcReady);
         return fromLangchainModel(bound);
       }
-      // If no native support, just return same adapter (tools will be ignored)
+      if (typeof lcModel.bind === 'function') {
+        const bound = lcModel.bind({ tools: lcReady });
+        return fromLangchainModel(bound);
+      }
       return adapted;
     },
     modelName: lcModel.modelName || lcModel._modelId || lcModel._llmType || lcModel.name,

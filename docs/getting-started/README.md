@@ -6,37 +6,32 @@ permalink: /getting-started/
 
 # Getting Started
 
-This guide helps you install, configure, and run your first agent. The base is a minimal createAgent; a SmartAgent layer is available for planning + summarization.
-This guide helps you install, configure, and run your first agent. You can choose between:
+This guide helps you install, configure, and run your first agent. Two entry points are available:
 
-- **`createSmartAgent`** – includes planning, summarization, system prompt helpers, and built-in context tools.
-- **`createAgent`** – minimal loop with no system prompt or summarization; perfect when you want full manual control.
+- **`createSmartAgent`** – batteries-included loop with planning, summarization, context tools, and structured-output helpers.
+- **`createAgent`** – minimal control loop with no system prompt or summarization so you can orchestrate everything yourself.
 ## Prerequisites
 
 - Node.js >= 18 (recommended LTS)
-- A supported model provider API key (e.g. `OPENAI_API_KEY`) OR you can start with a fake model for offline experimentation.
 - A supported model provider API key (e.g. `OPENAI_API_KEY`) **or** a fake model for offline experimentation.
 - Package manager: npm, pnpm, or yarn (examples use npm).
 ## Why this agent?
-
-You get: structured output, safe tool limits, optional planning/TODO mode (via SmartAgent), summarization of oversized context (SmartAgent), multi-agent composition, and clear logging – all with a small surface area.
-You get a message-first loop with:
 
 - Structured output enforcement via Zod schemas.
 - Safe tool limits (total + parallel) with finalize messaging.
 - Planning/TODO mode, summarization, and context tools when using `createSmartAgent`.
 - Built-in multi-agent composition (`asTool`, `asHandoff`).
-- LangChain and MCP compatibility without hard dependencies.
+- Adapter helpers for LangChain models/tools and MCP clients without taking a hard dependency.
 - Structured JSON tracing with optional payload capture.
 ## Install
 ```sh
-npm install @cognipeer/agent-sdk @langchain/core
-# Optional providers/helpers
-npm install @langchain/openai zod
+npm install @cognipeer/agent-sdk zod
+
+# Optional: install if you want LangChain adapters or MCP tool clients
+npm install @langchain/core @langchain/openai
 ```
 
-If you plan to use MCP or other adapters, also install the necessary packages (see future guides).
-If you plan to use MCP or other adapters, install the relevant SDKs alongside the agent.
+Install other adapters (e.g. MCP clients) as needed for your tools.
 ## Environment Setup
 
 Expose your model key (OpenAI example):
@@ -45,15 +40,16 @@ export OPENAI_API_KEY=sk-...
 ```
 Add this to your shell profile for persistence (`~/.zshrc` or similar).
 
-## Your first agent (base)
-## Option A: Smart agent with planning and summarization
+## Your first agent
+
+### Option A: Smart agent with planning and summarization
 
 ```ts
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back",
   schema: z.object({ text: z.string().min(1) }),
@@ -75,7 +71,7 @@ const agent = createSmartAgent({
 });
 
 const res = await agent.invoke({
-  messages: [{ role: "user", content: "plan a greeting and send it via the echo tool" }],
+  messages: [{ role: "user", content: "Plan a greeting and send it via the echo tool" }],
 });
 
 console.log(res.content);
@@ -85,12 +81,13 @@ What happens:
 1. A Zod-backed tool (`echo`) is registered.
 2. The smart agent injects a system prompt with planning rules and exposes the `manage_todo_list` + `get_tool_response` helpers.
 3. `invoke` runs the loop, executing tool calls until the assistant provides a final answer.
-4. If tracing is enabled, a `trace.session.json` file is written under `logs/<session>/`.
+4. When tracing is enabled, a `trace.session.json` file is written under `logs/<session>/`.
 
-## Option B: Minimal agent loop
+### Option B: Minimal agent loop
 
+```ts
 import { createAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
-import { createAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
 const echo = createTool({
@@ -100,66 +97,121 @@ const echo = createTool({
   func: async ({ text }) => ({ echoed: text }),
 });
 
-const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey: process.env.OPENAI_API_KEY }));
-const agent = createAgent({ model, tools: [echo], limits: { maxToolCalls: 5 } });
+const model = fromLangchainModel(new ChatOpenAI({
+  model: "gpt-4o-mini",
+  apiKey: process.env.OPENAI_API_KEY,
+}));
 
-const res = await agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] });
-const res = await agent.invoke({ messages: [{ role: 'user', content: "say hi via echo" }] });
+const agent = createAgent({
+  model,
+  tools: [echo],
+  limits: { maxToolCalls: 5 },
+});
+
+const res = await agent.invoke({
+  messages: [{ role: "user", content: "Say hi via echo" }],
+});
+
+console.log(res.content);
 ```
 
-### What happened?
-The base agent gives you full control: no system prompt, no planning rules, and no auto-summarization. Ideal when you already have prompt orchestration elsewhere.
-### Optional: Offline Fake Model
-## Optional: Offline fake model
+The base agent gives you full control: no system prompt, no planning rules, and no auto-summarization. Perfect when you already orchestrate prompts elsewhere.
 
-If you have no API key yet, stub a fake model:
-const fakeModel = { bindTools() { return this; }, async invoke(messages:any[]) { return { role:'assistant', content:'hello (fake)' }; } };
+> **Tip:** already have LangChain tools or MCP adapters? Wrap them with `fromLangchainTools(...)` before passing them into `tools`.
+
+### Optional: Offline fake model
+
+```ts
+const fakeModel = {
+  bindTools() { return this; },
+  async invoke() {
+    return { role: "assistant", content: "hello (fake)" };
+  },
+};
+
 const agent = createAgent({ model: fakeModel as any });
 ```
 
-## Adding Structured Output (base)
 ## Adding structured output
 
-Provide `outputSchema` on either agent variant to validate & parse the final message. The framework exposes `res.output` when parsing succeeds and injects a finalize tool the model can call (`response`).
+Provide `outputSchema` on either agent variant to validate and parse the final message. The framework exposes `res.output` when parsing succeeds and injects a finalize tool called `response`.
+
+```ts
 const Result = z.object({ title: z.string(), bullets: z.array(z.string()).min(1) });
 const agent = createAgent({ model, outputSchema: Result });
-const res = await agent.invoke({ messages: [{ role:'user', content:'Give 3 bullets about agents' }] });
-if (res.output) console.log(res.output.bullets);
+
+const res = await agent.invoke({
+  messages: [{ role: "user", content: "Give 3 bullets about agents" }],
+});
+
+console.log(res.output?.bullets);
 ```
 
-## Smart layer: Planning / TODO and Summarization
-Listen for plan events:
-await smart.invoke({ messages:[{ role:'user', content:'Plan and echo hi' }] }, { onEvent: e => { if(e.type==='plan') console.log('Plan size', e.todoList?.length); } });
-await agent.invoke(
-  { messages:[{ role:'user', content:'Plan and echo hi' }] },
-  { onEvent: e => { if (e.type === 'plan') console.log('Plan size', e.todoList?.length ?? 0); } }
-);
+## Smart layer: planning, TODO, and summarization
 
-## Handling Tool Limits
-Set caps to prevent runaway loops:
+Listen for plan updates emitted by the smart agent:
+
 ```ts
-createAgent({ model, tools:[echo], limits: { maxToolCalls: 3, maxParallelTools: 2 } });
-createAgent({ model, tools:[echo], limits: { maxToolCalls: 3, maxParallelTools: 2 } });
+await agent.invoke(
+  { messages: [{ role: "user", content: "Plan and echo hi" }] },
+  {
+    onEvent: (event) => {
+      if (event.type === "plan") {
+        console.log("Plan size", event.todoList?.length ?? 0);
+      }
+    },
+  }
+);
+```
+
+## Handling tool limits
+
+Set caps to prevent runaway loops:
+
+```ts
+createAgent({
+  model,
+  tools: [echo],
+  limits: { maxToolCalls: 3, maxParallelTools: 2 },
+});
+```
+
 When the limit is hit, a system finalize message is injected and the next model turn must answer directly.
 
 ## Context summarization (SmartAgent)
 
 Activate via `limits.maxToken` and adjust summarization targets:
+
 ```ts
-limits: { maxToolCalls: 8, maxToken: 6000, contextTokenLimit: 4000, summaryTokenLimit: 600 }
+createSmartAgent({
+  model,
+  tools: [echo],
+  limits: {
+    maxToolCalls: 8,
+    maxToken: 6000,
+    contextTokenLimit: 4000,
+    summaryTokenLimit: 600,
+  },
+});
 ```
-Disable entirely by `summarization: false`.
+
+Disable summarization entirely with `summarization: false`.
 
 ## Tracing & observability
+
 Enable structured JSON traces:
+
 ```ts
-tracing: {
-  enabled: true,
-  writeToFile: true,       // set false to skip local disk
-  onLog: (event) => console.debug("trace", event.id, event.label),
-}
+createSmartAgent({
+  model,
+  tracing: {
+    enabled: true,
+    logData: true,
+  },
+});
 ```
-Files appear under `logs/<session>/trace.session.json` when `writeToFile` is `true`. Use `logData: false` for metrics-only output, `upload` to forward traces, or `onLog` to stream events directly into your logger.
+
+By default, traces land in `logs/<session>/trace.session.json`. Keep `logData: true` for payload snapshots, set it to `false` for metrics-only mode, and swap in `fileSink(path?)`, `httpSink(url, headers?)`, `cognipeerSink(apiKey, url?)`, or `customSink({ onEvent, onSession })` when you want a different destination.
 
 ## Quick capability tour
 

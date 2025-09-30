@@ -1,4 +1,4 @@
-import { createAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { cognipeerSink, createAgent, createTool, fromLangchainModel, httpSink } from "@cognipeer/agent-sdk";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
@@ -60,8 +60,9 @@ const agent = createAgent({
     tools: [echo, ...(TAVILY_API_KEY ? [tavilySearch] : [])],
     limits: { maxToolCalls: 10 },
     tracing: {
-        enabled: true, upload: { url: "http://localhost:8080/v1/client/tracing/sessions", headers: { "authorization": "Bearer sl0eedeendwvu1fkedba9vyd7edhhksmv6vtigpkmwlk7zqogenyj8epqxfb" } }
-    }
+        enabled: true,
+        sink: cognipeerSink("http://localhost:8080/v1/client/tracing/sessions", "sl0eedeendwvu1fkedba9vyd7edhhksmv6vtigpkmwlk7zqogenyj8epqxfb")
+    },
 });
 
 const res = await agent.invoke(

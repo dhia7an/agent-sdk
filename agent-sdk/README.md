@@ -10,7 +10,7 @@ Composable, message-first agent runtime with token-aware summarization, optional
 - **Structured output** – pass a Zod schema to add a hidden `response` finalize tool and receive parsed JSON on `result.output`.
 - **Multi-agent composition** – reuse agents via `asTool` or transfer control mid-run via `asHandoff`.
 - **Usage normalization** – provider usage blobs are normalized and aggregated per model turn.
-- **Structured tracing** – enable `tracing.enabled` to emit JSON traces (with optional payload capture and uploads) under `logs/`.
+- **Structured tracing** – enable `tracing.enabled` to emit JSON traces (with optional payload capture and configurable sinks) under `logs/`.
 
 ## Install
 
@@ -27,11 +27,11 @@ npm install @langchain/core @langchain/openai
 ### ESM quick start
 
 ```ts
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back the input text",
   schema: z.object({ text: z.string().min(1) }),
@@ -120,8 +120,7 @@ Exports from `dist/index.*`:
 
 - `createSmartAgent(options)` – smart wrapper with system prompt, planning tools, summarization.
 - `createAgent(options)` – minimal loop without system prompt or summarization.
-- `createSmartTool({ name, description?, schema, func })` – helper for Zod-backed tools.
-- `createTool(...)` – alias kept for migration.
+- `createTool({ name, description?, schema, func })` – helper for Zod-backed tools.
 - `fromLangchainModel(model)` – duck-type adapter for LangChain `ChatModel` / `Runnable` objects.
 - `withTools(model, tools)` – best-effort tool binding helper.
 - `buildSystemPrompt(extra?, planning?, name?)` – construct the internal system prompt.
@@ -136,7 +135,7 @@ Exports from `dist/index.*`:
 - `summarization`: set to `false` to disable summarization entirely.
 - `outputSchema`: Zod schema for structured output parse + finalize tool.
 - `usageConverter`: hook to normalize provider-specific usage shapes.
-- `tracing`: `{ enabled: boolean, path?, logData?, upload? }` for JSON trace sessions and optional HTTP uploads.
+- `tracing`: `{ enabled: boolean, logData?, sink? }` for JSON trace sessions routed to file/HTTP/Cognipeer/custom sinks.
 - `onEvent`: receive `tool_call`, `plan`, `summarization`, `metadata`, `handoff`, and `finalAnswer` events per invoke.
 
 ### Structured output finalize
@@ -158,7 +157,7 @@ Enable tracing with `tracing: { enabled: true }`. Each invocation writes `trace.
 - Optional payload sections when `logData` is `true` so you can inspect prompts, responses, and tool bodies
 - Aggregated token totals and error summaries for quick dashboards
 
-Set `logData: false` to keep just metrics, or provide `upload: { url, headers? }` to POST the trace JSON to your observability API after each run. Upload headers are never persisted alongside the trace.
+Set `logData: false` to keep just metrics, or provide a sink such as `httpSink(url, headers?)` / `cognipeerSink(apiKey, url?)` / `customSink({ onEvent, onSession })` to forward traces after each run. Sensitive headers and callbacks stay in-memory and are never persisted alongside the trace.
 
 ## Build
 

@@ -1,9 +1,9 @@
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
 // Optional: only if you actually want to run against a real model instead of the fake one below.
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back",
   schema: z.object({ text: z.string().min(1) }),

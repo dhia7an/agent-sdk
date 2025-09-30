@@ -56,19 +56,39 @@ export type SmartAgentLimits = {
   maxParallelTools?: number;
 };
 
-export type SmartAgentTraceUploadConfig = {
+export type TraceSinkFileConfig = {
+  type: "file";
+  path?: string;
+};
+
+export type TraceSinkCustomConfig = {
+  type: "custom";
+  onEvent?: (event: TraceEventRecord) => void | Promise<void>;
+  onSession?: (session: TraceSessionFile) => void | Promise<void>;
+};
+
+export type TraceSinkCognipeerConfig = {
+  type: "cognipeer";
+  apiKey: string;
+  url?: string;
+};
+
+export type TraceSinkHttpConfig = {
+  type: "http";
   url: string;
   headers?: Record<string, string>;
 };
 
+export type TraceSinkConfig =
+  | TraceSinkFileConfig
+  | TraceSinkCustomConfig
+  | TraceSinkCognipeerConfig
+  | TraceSinkHttpConfig;
+
 export type SmartAgentTracingConfig = {
   enabled: boolean;
-  path?: string;
-  mode?: "batched" | "stream";
   logData?: boolean;
-  upload?: SmartAgentTraceUploadConfig | null;
-  writeToFile?: boolean;
-  onLog?: (event: TraceEventRecord) => void;
+  sink?: TraceSinkConfig;
 };
 
 export type SmartAgentOptions = {
@@ -220,36 +240,54 @@ export type TraceSessionSummary = {
 
 export type TraceSessionStatus = "in_progress" | "success" | "error" | "partial";
 
+export type TraceSinkSnapshot =
+  | { type: "file"; path: string }
+  | { type: "custom" }
+  | { type: "cognipeer"; url: string }
+  | { type: "http"; url: string };
+
+export type TraceSessionConfigSnapshot = {
+  enabled: boolean;
+  logData: boolean;
+  sink: TraceSinkSnapshot;
+};
+
 export type TraceSessionFile = {
   sessionId: string;
   startedAt: string;
   endedAt?: string;
   durationMs?: number;
   agent?: { name?: string; version?: string; model?: string; provider?: string };
-  config: SmartAgentTracingConfig & { baseDir?: string };
+  config: TraceSessionConfigSnapshot;
   summary: TraceSessionSummary;
   events: TraceEventRecord[];
   status: TraceSessionStatus;
   errors: TraceErrorRecord[];
 };
 
-export type ResolvedTraceConfig = SmartAgentTracingConfig & {
-  path: string;
-  mode: "batched" | "stream";
+export type ResolvedTraceSink =
+  | { type: "file"; baseDir: string }
+  | { type: "custom"; onEvent?: (event: TraceEventRecord) => void | Promise<void>; onSession?: (session: TraceSessionFile) => void | Promise<void> }
+  | { type: "cognipeer"; url: string; apiKey: string }
+  | { type: "http"; url: string; headers?: Record<string, string> };
+
+export type ResolvedTraceConfig = {
+  enabled: boolean;
+  mode: "batched";
   logData: boolean;
-  writeToFile: boolean;
+  sink: ResolvedTraceSink;
 };
 
 export type TraceSessionRuntime = {
   sessionId: string;
-  baseDir: string;
-  sessionDir: string;
   startedAt: number;
   resolvedConfig: ResolvedTraceConfig;
   events: TraceEventRecord[];
   summary: TraceSessionSummary;
   status: TraceSessionStatus;
   errors: TraceErrorRecord[];
+  fileBaseDir?: string;
+  fileSessionDir?: string;
 };
 
 // Handoff descriptor returned from childAgent.asHandoff(...)

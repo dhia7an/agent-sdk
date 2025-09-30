@@ -1,29 +1,9 @@
-import { tool, type ToolInterface } from "@langchain/core/tools";
-import { ZodSchema } from "zod";
+import type { ZodSchema } from "zod";
+
+import type { ToolInterface } from "./types.js";
 
 export type SmartToolFn = (args: any) => Promise<any> | any;
 
-export function createSmartTool({
-    name,
-    description,
-    schema,
-    func,
-}: {
-    name: string;
-    description?: string;
-    schema: ZodSchema,
-    func: SmartToolFn;
-}): ToolInterface {
-    return tool(async (input) => {
-        return func(input);
-    }, {
-        name,
-        description,
-        schema
-    })
-}
-
-// Alias for future agent-sdk naming; mirrors createSmartTool
 export function createTool({
     name,
     description,
@@ -35,5 +15,21 @@ export function createTool({
     schema: ZodSchema;
     func: SmartToolFn;
 }): ToolInterface {
-    return createSmartTool({ name, description, schema, func });
+    const execute: SmartToolFn = async (input: any) => func(input);
+
+    const toolRecord: ToolInterface = {
+        name,
+        description,
+        schema,
+        // Our runtime prefers invoke but fallback helpers keep compatibility with LC-style tools.
+        invoke: execute,
+        call: execute,
+        run: execute,
+        func: execute,
+    } as ToolInterface;
+
+    (toolRecord as any).__source = (toolRecord as any).__source || "smart";
+    (toolRecord as any).__impl = func;
+
+    return toolRecord;
 }

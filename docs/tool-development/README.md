@@ -17,13 +17,24 @@ This guide covers patterns and edge cases when authoring tools beyond the basic 
 
 ## Anatomy Recap
 ```ts
-const weather = createSmartTool({
+const weather = createTool({
   name: "weather_lookup",
   description: "Lookup current weather for a city",
   schema: z.object({ city: z.string().min(2), units: z.enum(["c","f"]).default("c") }),
   func: async ({ city, units }) => { /* ... */ return { city, units, temp: 21 }; }
 });
 ```
+
+Already have an existing LangChain or MCP tool? Wrap it via `fromLangchainTools([...])` and mix it with your custom tools:
+
+```ts
+import { fromLangchainTools } from "@cognipeer/agent-sdk";
+
+const lcTools = await client.getTools();
+const tools = [...fromLangchainTools(lcTools), weather];
+```
+
+`fromLangchainTools` keeps the input objects lazy—if `@langchain/core` is available the wrapper regenerates LangChain-compatible tools; otherwise it falls back to invoking them through the lightweight SDK contract.
 
 ## Input Validation
 Rely on Zod for strong guarantees. Prefer transforming vague primitives into structured fields rather than post‑parsing inside `func`.

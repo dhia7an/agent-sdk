@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { createSmartAgent, createSmartTool, createContextTools, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool, createContextTools, fromLangchainModel } from "@cognipeer/agent-sdk";
 import { z } from "zod";
 
 let turn = 0;
@@ -17,7 +17,7 @@ const fakeModel = {
 const apiKey = process.env.OPENAI_API_KEY || "";
 const model = apiKey ? fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey })) : (fakeModel as any);
 
-const heavyTool = createSmartTool({
+const heavyTool = createTool({
   name: "heavy_tool",
   description: "Returns heavy content",
   schema: z.object({ id: z.number().min(1) }),

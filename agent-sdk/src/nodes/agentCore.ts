@@ -1,5 +1,4 @@
-import type { ToolInterface } from "@langchain/core/tools";
-import type { Message, SmartAgentOptions, SmartState } from "../types.js";
+import type { Message, SmartAgentOptions, SmartState, ToolInterface } from "../types.js";
 import { normalizeUsage } from "../utils/usage.js";
 import { recordTraceEvent, sanitizeTracePayload, estimatePayloadBytes, getModelName, getProviderName } from "../utils/tracing.js";
 

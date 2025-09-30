@@ -20,7 +20,7 @@ When `limits.maxToken` would be exceeded before the next model call, the `contex
 It is enabled by default. Pass `summarization: false` to `createSmartAgent({ ... })` to turn it off. When disabled, `limits.maxToken` will not trigger compaction.
 
 ## Can I use MCP tools?
-Yes. MCP adapter tools can be provided in the `tools` array like any LangChain tool.
+Yes. Most MCP clients expose LangChain-style tools. Pass them through `fromLangchainTools(...)` first, then include the returned objects in the `tools` array. They behave like any other SDK-native tool.
 
 ## What's the difference between `createAgent` and `createSmartAgent`?
 `createAgent` is the minimal loop: no system prompt, no planning helpers, no summaries. `createSmartAgent` adds those features automatically (planning rules, context tools, summarization, optional structured output finalize). Choose the one that matches your orchestration needs.
@@ -39,4 +39,4 @@ The assistant proposed additional tool calls after hitting `limits.maxToolCalls`
 ## Traces aren't showing up
 - Verify `tracing: { enabled: true }` was passed.
 - Confirm your process has write access to the tracing path (defaults to `<cwd>/logs`).
-- If you configured `upload`, check the HTTP response codes in your application logs; failed uploads are recorded in the session `errors` array.
+- If you configured a non-file sink, check its HTTP responses/callback errors; failures are appended to the session `errors` array with type `sink`.

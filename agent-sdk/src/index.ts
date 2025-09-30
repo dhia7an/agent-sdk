@@ -11,6 +11,8 @@ export * from "./utils/tokenManager.js";
 export * from "./utils/utilTokens.js";
 export * from "./contextTools.js";
 export * from "./smart/index.js";
+export { fromLangchainTools } from "./adapters/langchain.js";
+export { fileSink, customSink, cognipeerSink, httpSink } from "./utils/tracing.js";
 export type {
 	SmartAgentOptions,
 	SmartAgentLimits,
@@ -18,7 +20,6 @@ export type {
 	InvokeConfig,
 	AgentInvokeResult,
 	SmartAgentInstance,
-	SmartAgentTraceUploadConfig,
 	SmartAgentTracingConfig,
 	TraceEventRecord,
 	TraceDataSection,
@@ -32,6 +33,14 @@ export type {
 	TraceSessionStatus,
 	TraceErrorRecord,
 	ResolvedTraceConfig,
+	ResolvedTraceSink,
+	TraceSinkConfig,
+	TraceSinkFileConfig,
+	TraceSinkCustomConfig,
+	TraceSinkCognipeerConfig,
+	TraceSinkHttpConfig,
+	TraceSinkSnapshot,
+	TraceSessionConfigSnapshot,
 } from "./types.js";
 // Agent* aliases for migration
 export type { AgentOptions, AgentLimits, AgentState, AgentEvent, AgentResult, AgentInstance } from "./types.js";

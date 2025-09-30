@@ -35,11 +35,11 @@ Decisions about summarization or finalize insertion are factored into small "dec
 | smart/index.ts | Orchestrator: composes nodes, runs loop, manages summarization decisions, exposes `invoke`, `asTool`, `asHandoff`. |
 | agent.ts | Minimal loop implementation used by `createAgent`; handles structured output parsing and handoff plumbing. |
 | nodes/*.ts | Stateless(ish) transformation phases (resolver, agentCore, tools, contextSummarize, toolLimitFinalize). |
-| tool.ts | `createSmartTool` / `createTool` factory with Zod schema binding. |
+| tool.ts | `createTool` factory with Zod schema binding. |
 | contextTools.ts | Built-in planning + retrieval tools (`manage_todo_list`, `get_tool_response`) |
 | prompts.ts | System prompt construction & planning rules |
 | utils/tokenManager.ts | Token budget heuristics & compaction sizing |
-| utils/tracing.ts | Trace session lifecycle, event recording, uploads, and helper utilities |
+| utils/tracing.ts | Trace session lifecycle, event recording, sinks, and helper utilities |
 | graph/decisions.ts | Summarization / finalize decision helpers |
 
 ## Message Flow (Conceptual Diagram)

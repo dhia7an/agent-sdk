@@ -6,15 +6,15 @@ permalink: /tools/
 
 # Tools
 
-## createSmartTool / createTool
+## createTool
 
-Define tools quickly with a Zod schema and an async function. `createTool` is an alias maintained for compatibility; both behave the same.
+Define tools quickly with a Zod schema and an async function.
 
 ```ts
-import { createSmartTool } from "@cognipeer/agent-sdk";
+import { createTool } from "@cognipeer/agent-sdk";
 import { z } from "zod";
 
-const search = createSmartTool({
+const search = createTool({
   name: "search",
   description: "Simple search",
   schema: z.object({ q: z.string() }),
@@ -22,7 +22,7 @@ const search = createSmartTool({
 });
 ```
 
-Under the hood the helper yields a LangChain-compatible `ToolInterface`, so any LangChain-enabled adapter can interoperate seamlessly.
+Under the hood the helper yields a lightweight internal tool object. It remains duck-typed so LangChain adapters (and other ecosystems) can still interoperate once converted via adapter helpers.
 
 ## Bring your own tool implementation
 
@@ -43,7 +43,16 @@ const agent = createAgent({ model, tools: [customTool] });
 
 ## MCP and LangChain tools
 
-Any LangChain `ToolInterface` implementation is supported directly. MCP adapters (e.g. `MultiServerMCPClient.tool()`) produce compatible objects as well – just push them into the `tools` array.
+Any LangChain `ToolInterface` implementation is supported after converting through `fromLangchainTools(...)`. MCP adapters (e.g. `MultiServerMCPClient.tool()`) produce LangChain-style tools, so wrap them first:
+
+```ts
+import { fromLangchainTools } from "@cognipeer/agent-sdk";
+
+const lcTools = await client.getTools();
+const tools = fromLangchainTools(lcTools);
+```
+
+When using `fromLangchainModel(...)`, tools passed to the agent are automatically bridged back to LangChain (if `@langchain/core` is installed); otherwise the agent falls back to plain callables.
 
 ## Context tools (SmartAgent)
 - `manage_todo_list` – exposed when `useTodoList: true`. Maintains an explicit plan. The agent must call it first to write a plan, then after every action to update statuses.

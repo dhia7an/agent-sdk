@@ -1,4 +1,4 @@
-import { createSmartAgent, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, fromLangchainModel, fromLangchainTools } from "@cognipeer/agent-sdk";
 import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
@@ -24,7 +24,7 @@ const client = new MultiServerMCPClient({
   },
 });
 
-const tools = await client.getTools();
+const tools = fromLangchainTools(await client.getTools());
 console.log("Discovered MCP tools:", tools.map((t: any) => t.name));
 
 const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0, apiKey: OPENAI_API_KEY }));

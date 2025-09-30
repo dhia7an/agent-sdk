@@ -5,7 +5,7 @@ import { createResolverNode } from "./nodes/resolver.js";
 import { createAgentCoreNode } from "./nodes/agentCore.js";
 import { createToolsNode } from "./nodes/tools.js";
 import { createToolLimitFinalizeNode } from "./nodes/toolLimitFinalize.js";
-import { createSmartTool } from "./tool.js";
+import { createTool } from "./tool.js";
 import { createTraceSession, finalizeTraceSession } from "./utils/tracing.js";
 
 type LiteMessage = { role: string; content: any; name?: string; [k: string]: any };
@@ -17,7 +17,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
   // Prepare tools list: base tools + structured output finalize if schema provided
   const toolsBase = [...((opts.tools as any) ?? [])];
   if (opts.outputSchema) {
-    const responseTool = createSmartTool({
+  const responseTool = createTool({
       name: 'response',
       description: 'Finalize the answer by returning the final structured JSON matching the required schema. Call exactly once when you are fully done, then stop.',
       schema: opts.outputSchema as any,
@@ -153,7 +153,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
     },
     asTool: ({ toolName, description, inputDescription }: { toolName: string; description?: string; inputDescription?: string }) => {
       const schema = z.object({ input: z.string().describe(inputDescription || "Input for delegated agent") });
-      return createSmartTool({
+  return createTool({
         name: toolName,
         description: description || `Delegate task to agent ${opts.name || 'Agent'}`,
         schema,
@@ -166,7 +166,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
     asHandoff: ({ toolName, description, schema }: { toolName?: string; description?: string; schema?: ZodSchema<any>; }): HandoffDescriptor => {
       const finalName = toolName || `handoff_to_${runtime.name || 'agent'}`;
       const zschema = schema || z.object({ reason: z.string().describe('Reason for handoff') });
-      const tool = createSmartTool({
+  const tool = createTool({
         name: finalName,
         description: description || `Handoff control to agent ${runtime.name || 'Agent'}`,
         schema: zschema,
@@ -180,7 +180,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
   if (opts.handoffs && Array.isArray(opts.handoffs)) {
     const handoffTools = opts.handoffs.map(h => {
       const schema = h.schema || z.object({ reason: z.string().describe('Reason for handoff') });
-      return createSmartTool({
+  return createTool({
         name: h.toolName,
         description: h.description || `Handoff to ${h.target.__runtime.name || 'agent'}`,
         schema,

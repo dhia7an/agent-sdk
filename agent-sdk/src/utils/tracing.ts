@@ -5,18 +5,60 @@ import { nanoid } from "nanoid";
 import type {
   AgentRuntimeConfig,
   ResolvedTraceConfig,
+  ResolvedTraceSink,
   SmartAgentOptions,
-  SmartAgentTraceUploadConfig,
   SmartAgentTracingConfig,
   TraceDataSection,
-  TraceToolCallSection,
   TraceErrorRecord,
   TraceEventRecord,
+  TraceSessionConfigSnapshot,
   TraceSessionFile,
   TraceSessionRuntime,
   TraceSessionStatus,
   TraceSessionSummary,
+  TraceSinkConfig,
+  TraceSinkSnapshot,
+  TraceToolCallSection,
 } from "../types.js";
+
+const DEFAULT_COGNIPEER_URL = "https://api.cognipeer.com/v1/client/tracing/sessions";
+
+export function fileSink(path?: string): TraceSinkConfig {
+  return { type: "file", path };
+}
+
+type CustomSinkArg =
+  | ((event: TraceEventRecord) => void | Promise<void>)
+  | {
+    onEvent?: (event: TraceEventRecord) => void | Promise<void>;
+    onSession?: (session: TraceSessionFile) => void | Promise<void>;
+  };
+
+export function customSink(handler: CustomSinkArg): TraceSinkConfig {
+  if (typeof handler === "function") {
+    return { type: "custom", onEvent: handler };
+  }
+  return {
+    type: "custom",
+    onEvent: typeof handler?.onEvent === "function" ? handler.onEvent : undefined,
+    onSession: typeof handler?.onSession === "function" ? handler.onSession : undefined,
+  };
+}
+
+export function cognipeerSink(apiKey: string): TraceSinkConfig;
+export function cognipeerSink(url: string | undefined, apiKey: string): TraceSinkConfig;
+export function cognipeerSink(first: string | undefined, second?: string): TraceSinkConfig {
+  if (second === undefined) {
+    const apiKey = first ?? "";
+    return { type: "cognipeer", apiKey };
+  }
+  const url = typeof first === "string" && first.trim().length > 0 ? first.trim() : undefined;
+  return { type: "cognipeer", url, apiKey: second };
+}
+
+export function httpSink(url: string, headers?: Record<string, string>): TraceSinkConfig {
+  return { type: "http", url, headers };
+}
 function resolveLogsBaseDir(customPath?: string, ensureDirectory = true) {
   const root = process.cwd();
   const base = customPath && customPath.trim().length > 0 ? customPath : path.join(root, "logs");
@@ -49,15 +91,10 @@ export function getProviderName(model: any): string | undefined {
   );
 }
 
-const DEFAULT_TRACE_CONFIG: Omit<ResolvedTraceConfig, "path"> & { path?: string } = {
+const DEFAULT_TRACE_CONFIG = {
   enabled: false,
-  mode: "batched",
-  path: undefined,
   logData: true,
-  upload: undefined,
-  writeToFile: true,
-  onLog: undefined,
-};
+} as const;
 
 function ensureDir(p: string) {
   if (!fs.existsSync(p)) {
@@ -66,69 +103,110 @@ function ensureDir(p: string) {
 }
 
 function withDefaults(config?: SmartAgentTracingConfig): ResolvedTraceConfig {
-  const merged = {
-    ...DEFAULT_TRACE_CONFIG,
-    ...(config || {}),
-  } as SmartAgentTracingConfig & typeof DEFAULT_TRACE_CONFIG;
-  const { enabled, path: customPath } = merged;
-  const writeToFile = merged.writeToFile ?? true;
-  const resolvedPath = resolveLogsBaseDir(customPath, writeToFile !== false);
-  return {
-    enabled: !!enabled,
-    path: resolvedPath,
-    mode: merged.mode ?? "batched",
-    logData: merged.logData ?? true,
-    upload: sanitizeUploadConfig(merged.upload),
-    writeToFile,
-    onLog: typeof merged.onLog === "function" ? merged.onLog : undefined,
-  };
-}
+  const enabled = Boolean(config?.enabled);
+  const logData = config?.logData ?? DEFAULT_TRACE_CONFIG.logData;
 
-function sanitizeUploadConfig(upload: SmartAgentTracingConfig["upload"]): SmartAgentTraceUploadConfig | undefined {
-  if (!upload || typeof upload !== "object") return undefined;
-  const trimmedUrl = typeof upload.url === "string" ? upload.url.trim() : "";
-  if (!trimmedUrl) return undefined;
-  const headers = upload.headers ? { ...upload.headers } : undefined;
-  return headers ? { url: trimmedUrl, headers } : { url: trimmedUrl };
-}
+  let sink: ResolvedTraceSink;
+  try {
+    sink = resolveSink(config?.sink);
+  } catch (err) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn("Invalid tracing sink configuration. Falling back to file sink.", err);
+    }
+    sink = resolveSink({ type: "file" });
+  }
 
-function sanitizeConfigForFile(config: ResolvedTraceConfig, baseDir: string): SmartAgentTracingConfig & { baseDir: string } {
-  const upload = config.upload?.url ? { url: config.upload.url } : undefined;
-  const { path, mode, logData, enabled, writeToFile } = config;
   return {
     enabled,
-    path,
-    mode,
     logData,
-    writeToFile,
-    ...(upload ? { upload } : {}),
-    baseDir,
+    mode: "batched",
+    sink,
   };
 }
 
-async function uploadTraceSession(
-  upload: SmartAgentTraceUploadConfig | undefined,
+function resolveSink(sink?: TraceSinkConfig): ResolvedTraceSink {
+  const candidate = sink ?? { type: "file" };
+  switch (candidate.type) {
+    case "file": {
+      const baseDir = resolveLogsBaseDir(candidate.path, false);
+      return { type: "file", baseDir };
+    }
+    case "custom": {
+      const onEvent = typeof candidate.onEvent === "function" ? candidate.onEvent : undefined;
+      const onSession = typeof candidate.onSession === "function" ? candidate.onSession : undefined;
+      return { type: "custom", onEvent, onSession };
+    }
+    case "cognipeer": {
+      const apiKey = typeof candidate.apiKey === "string" ? candidate.apiKey.trim() : "";
+      if (!apiKey) {
+        throw new Error("cognipeer sink requires a non-empty apiKey");
+      }
+      const url = typeof candidate.url === "string" && candidate.url.trim().length > 0
+        ? candidate.url.trim()
+        : DEFAULT_COGNIPEER_URL;
+      return { type: "cognipeer", url, apiKey };
+    }
+    case "http": {
+      const url = typeof candidate.url === "string" ? candidate.url.trim() : "";
+      if (!url) {
+        throw new Error("http sink requires a non-empty url");
+      }
+      const headers = candidate.headers ? { ...candidate.headers } : undefined;
+      return headers ? { type: "http", url, headers } : { type: "http", url };
+    }
+    default: {
+      if (typeof console !== "undefined" && typeof console.warn === "function") {
+        console.warn("Unknown tracing sink type. Falling back to file sink.", candidate);
+      }
+      return resolveSink({ type: "file" });
+    }
+  }
+}
+
+function snapshotSink(runtime: TraceSessionRuntime): TraceSinkSnapshot {
+  const sink = runtime.resolvedConfig.sink;
+  switch (sink.type) {
+    case "file":
+      return { type: "file", path: runtime.fileBaseDir || sink.baseDir };
+    case "custom":
+      return { type: "custom" };
+    case "cognipeer":
+      return { type: "cognipeer", url: sink.url };
+    case "http":
+      return { type: "http", url: sink.url };
+    default:
+      return { type: "custom" };
+  }
+}
+
+function buildConfigSnapshot(runtime: TraceSessionRuntime): TraceSessionConfigSnapshot {
+  return {
+    enabled: runtime.resolvedConfig.enabled,
+    logData: runtime.resolvedConfig.logData,
+    sink: snapshotSink(runtime),
+  };
+}
+
+async function postTraceSession(
+  url: string,
+  headers: Record<string, string> | undefined,
   payload: TraceSessionFile
 ): Promise<void> {
-  if (!upload?.url) return;
   const fetchFn = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : undefined;
   if (!fetchFn) {
-    throw new Error("HTTP upload requested but fetch is not available in this runtime.");
+    throw new Error("HTTP sink requires fetch to be available in this runtime.");
   }
 
-  const headers = { ...(upload.headers || {}) } as Record<string, string>;
-  const hasContentType = Object.keys(headers).some((key) => key.toLowerCase() === "content-type");
-  if (!hasContentType) {
-    headers["content-type"] = "application/json";
+  const finalHeaders = { ...(headers || {}) } as Record<string, string>;
+  if (!Object.keys(finalHeaders).some((key) => key.toLowerCase() === "content-type")) {
+    finalHeaders["content-type"] = "application/json";
   }
 
-  const response = await fetchFn(upload.url, {
+  const response = await fetchFn(url, {
     method: "POST",
-    headers,
+    headers: finalHeaders,
     body: JSON.stringify(payload),
   });
-
-  console.log("Trace upload response", response.status, response.statusText);
 
   if (!response.ok) {
     let responseText = "";
@@ -340,15 +418,8 @@ export function createTraceSession(opts: SmartAgentOptions): TraceSessionRuntime
   if (!cfg.enabled) return undefined;
 
   const sessionId = generateSessionId();
-  const sessionDir = path.join(cfg.path, sessionId);
-  if (cfg.writeToFile) {
-    ensureDir(sessionDir);
-  }
-
-  return {
+  const runtime: TraceSessionRuntime = {
     sessionId,
-    baseDir: cfg.path,
-    sessionDir,
     startedAt: Date.now(),
     resolvedConfig: cfg,
     events: [],
@@ -356,6 +427,17 @@ export function createTraceSession(opts: SmartAgentOptions): TraceSessionRuntime
     status: "in_progress",
     errors: [],
   };
+
+  if (cfg.sink.type === "file") {
+    const baseDir = cfg.sink.baseDir;
+    ensureDir(baseDir);
+    const sessionDir = path.join(baseDir, sessionId);
+    ensureDir(sessionDir);
+    runtime.fileBaseDir = baseDir;
+    runtime.fileSessionDir = sessionDir;
+  }
+
+  return runtime;
 }
 
 export function recordTraceEvent(
@@ -468,13 +550,21 @@ export function recordTraceEvent(
   }
 
   session.events.push(record);
-  if (typeof session.resolvedConfig.onLog === "function") {
+  const sink = session.resolvedConfig.sink;
+  if (sink.type === "custom" && typeof sink.onEvent === "function") {
     try {
       const cloned = JSON.parse(JSON.stringify(record));
-      session.resolvedConfig.onLog(cloned);
+      const result = sink.onEvent(cloned);
+      if (result && typeof (result as PromiseLike<void>).then === "function") {
+        (result as PromiseLike<void>).then(undefined, (error: unknown) => {
+          if (typeof console !== "undefined" && typeof console.warn === "function") {
+            console.warn("Trace custom sink onEvent rejected", error);
+          }
+        });
+      }
     } catch (err) {
       if (typeof console !== "undefined" && typeof console.warn === "function") {
-        console.warn("Trace onLog callback failed", err);
+        console.warn("Trace custom sink onEvent failed", err);
       }
     }
   }
@@ -512,7 +602,7 @@ export async function finalizeTraceSession(session: TraceSessionRuntime | undefi
     });
   }
 
-  const configForFile = sanitizeConfigForFile(session.resolvedConfig, session.baseDir);
+  const configSnapshot = buildConfigSnapshot(session);
   const initialStatus: TraceSessionStatus = params.status
     ? params.status
     : session.errors.length > 0
@@ -525,49 +615,97 @@ export async function finalizeTraceSession(session: TraceSessionRuntime | undefi
     endedAt: endedAtIso,
     durationMs,
     agent: agentInfo,
-    config: configForFile,
+    config: configSnapshot,
     summary: session.summary,
     events: session.events,
     status,
     errors: session.errors,
   });
 
-  const payloadForUpload = buildPayload(initialStatus);
-  let uploadFailed = false;
+  const payloadForSink = buildPayload(initialStatus);
+  let sinkFailed = false;
+  const sink = session.resolvedConfig.sink;
 
-  if (session.resolvedConfig.upload?.url) {
+  if (sink.type === "cognipeer" || sink.type === "http") {
     try {
-      await uploadTraceSession(session.resolvedConfig.upload, payloadForUpload);
+      const headers = sink.type === "cognipeer"
+        ? { Authorization: `Bearer ${sink.apiKey}` }
+        : sink.headers;
+      await postTraceSession(sink.url, headers, payloadForSink);
     } catch (err) {
-      uploadFailed = true;
+      sinkFailed = true;
       const message = err instanceof Error ? err.message : String(err);
       session.errors.push({
-        eventId: "upload",
+        eventId: "sink",
         message,
-        type: "upload",
+        type: "sink",
         timestamp: endedAtIso,
       });
     }
   }
 
-  let status: TraceSessionStatus = params.status
-    ? params.status
-    : session.errors.length > 0
-      ? session.errors.some((error) => error.type && error.type !== "upload")
-        ? "error"
-        : uploadFailed
-          ? "partial"
-          : "success"
-      : uploadFailed && initialStatus === "success"
-        ? "partial"
-        : initialStatus;
-
-  const filePayload = buildPayload(status);
-  if (session.resolvedConfig.writeToFile) {
-    const filePath = path.join(session.sessionDir, "trace.session.json");
-    await fs.promises.writeFile(filePath, JSON.stringify(filePayload, null, 2), "utf8");
+  const hadNonSinkErrors = session.errors.some((error) => error.type && error.type !== "sink");
+  let status: TraceSessionStatus = params.status ?? (hadNonSinkErrors ? "error" : "success");
+  if (status === "success" && sinkFailed) {
+    status = "partial";
   }
-  return filePayload;
+
+  let finalPayload = buildPayload(status);
+
+  if (sink.type === "file" && session.fileSessionDir) {
+    try {
+      const filePath = path.join(session.fileSessionDir, "trace.session.json");
+      await fs.promises.writeFile(filePath, JSON.stringify(finalPayload, null, 2), "utf8");
+    } catch (err) {
+      sinkFailed = true;
+      const message = err instanceof Error ? err.message : String(err);
+      session.errors.push({
+        eventId: "sink",
+        message,
+        type: "sink",
+        timestamp: endedAtIso,
+      });
+      if (status === "success") {
+        status = "partial";
+        finalPayload = buildPayload(status);
+      }
+    }
+  }
+
+  if (sink.type === "custom" && typeof sink.onSession === "function") {
+    try {
+      const cloned = JSON.parse(JSON.stringify(finalPayload));
+      await sink.onSession(cloned);
+    } catch (err) {
+      sinkFailed = true;
+      const message = err instanceof Error ? err.message : String(err);
+      session.errors.push({
+        eventId: "sink",
+        message,
+        type: "sink",
+        timestamp: endedAtIso,
+      });
+      if (status === "success") {
+        status = "partial";
+        finalPayload = buildPayload(status);
+      }
+    }
+  }
+
+  if (!params.status) {
+    const finalHadNonSinkErrors = session.errors.some((error) => error.type && error.type !== "sink");
+    const hasSinkErrors = session.errors.some((error) => error.type === "sink");
+    let computedStatus: TraceSessionStatus = finalHadNonSinkErrors ? "error" : "success";
+    if (computedStatus === "success" && hasSinkErrors) {
+      computedStatus = "partial";
+    }
+    if (computedStatus !== status) {
+      status = computedStatus;
+      finalPayload = buildPayload(status);
+    }
+  }
+
+  return finalPayload;
 }
 
 export type { ResolvedTraceConfig };

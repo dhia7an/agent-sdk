@@ -12,9 +12,9 @@ permalink: /api/
 |----------|---------|
 | `createSmartAgent(options)` | Smart wrapper with system prompt, planning tools, summarization, and structured output finalize support. |
 | `createAgent(options)` | Minimal loop without system prompt or summarization. |
-| `createSmartTool({ name, description?, schema, func })` | Convenience helper for Zod-backed tools (returns LangChain-compatible `Tool`). |
-| `createTool({ ... })` | Alias of `createSmartTool` kept for migration. |
+| `createTool({ name, description?, schema, func })` | Convenience helper for Zod-backed tools producing a lightweight tool object. |
 | `fromLangchainModel(model)` | Adapter for LangChain `ChatModel` / `Runnable` objects. |
+| `fromLangchainTools(tools)` | Converts LangChain/MCP `ToolInterface` objects into lightweight SDK tools. |
 | `withTools(model, tools)` | Best-effort helper to bind tools to a model that exposes `bindTools`. |
 | `buildSystemPrompt(extra?, planning?, name?)` | Compose the built-in system prompt with optional additional instructions. |
 | `contextTools.ts` | Factory for built-in tools (`manage_todo_list`, `get_tool_response`, optional `response`). |
@@ -40,7 +40,7 @@ permalink: /api/
 - `outputSchema?: ZodSchema` – enables structured output finalize tool + parsed `result.output`.
 - `handoffs?: HandoffDescriptor[]` – pre-configured agent handoffs exposed as tools.
 - `usageConverter?: (finalMessage, fullState, model) => any` – override usage normalization.
-- `tracing?: { enabled: boolean; path?: string; mode?: 'batched'; logData?: boolean; upload?: { url: string; headers?: Record<string,string> } }` – write JSON trace sessions with optional payload capture and HTTP upload.
+- `tracing?: { enabled: boolean; logData?: boolean; sink?: TraceSinkConfig }` – structured JSON traces with pluggable sinks (`fileSink`, `httpSink`, `cognipeerSink`, `customSink`).
 - `onEvent?: (event: SmartAgentEvent) => void` – global event listener (per-invoke listener can override).
 
 ### SmartAgent-specific behavior
@@ -119,6 +119,10 @@ Usage is stored on `state.usage.perRequest` (one entry per agent turn) and aggre
 - Mapping internal `Message` objects to LangChain message structures.
 - Calling `lcModel.invoke(messages)`.
 - Rewrapping the result back into `{ role, content, tool_calls, usage }`.
-- Binding tools by deferring to `lcModel.bindTools` when available.
+- Binding tools by deferring to `lcModel.bindTools` (or `bind`) after converting your tools with `fromLangchainTools`. If `@langchain/core` is not installed, the adapter keeps using the lightweight SDK representation instead of failing.
+
+`fromLangchainTools` accepts any LangChain `ToolInterface` (including MCP clients built on LangChain) and returns SDK-native tool objects. Use it when you already have ready-made LangChain tools and want to plug them directly into `tools: [...]`.
+
+> Optional dependency: install `@langchain/core` only if you want the adapter to return true LangChain tool instances. Without it, the wrapper still works by invoking the lightweight form.
 
 If you prefer raw SDKs (OpenAI, Anthropic, etc.), implement a small object with `invoke` yourself – no additional helpers required.

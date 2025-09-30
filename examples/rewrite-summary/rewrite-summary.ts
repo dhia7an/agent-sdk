@@ -1,4 +1,4 @@
-import { createSmartAgent, createSmartTool } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool } from "@cognipeer/agent-sdk";
 import { z } from "zod";
 
 let turn = 0;
@@ -13,7 +13,7 @@ const fakeModel = {
   },
 };
 
-const heavyEcho = createSmartTool({
+const heavyEcho = createTool({
   name: "heavy_echo",
   description: "Echo back a very long string",
   schema: z.object({ text: z.string() }),

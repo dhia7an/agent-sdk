@@ -24,13 +24,10 @@ Each `invoke` creates a new session directory under `logs/<SESSION_ID>/` and wri
 | Option | Description |
 |--------|-------------|
 | `enabled` | Required. Turn tracing on/off per agent. |
-| `path` | Destination directory (defaults to `<cwd>/logs`). Created automatically. |
 | `logData` | When `true`, include prompt/response/tool payloads alongside metrics. Set to `false` to store only metadata. |
-| `upload` | `{ url, headers? }`. If provided, the finalized trace is `POST`ed to the URL. Headers remain in-memory and are not saved to disk. |
-| `writeToFile` | Default `true`. Set to `false` to skip writing `trace.session.json` locally (useful when you only upload or stream via `onLog`). |
-| `onLog` | Optional callback `(event) => void`. Receives every `TraceEventRecord` as soon as it’s recorded—handy for piping into custom dashboards or loggers. |
+| `sink` | Controls where finalized traces go. Defaults to `fileSink()` which writes `trace.session.json` under `<cwd>/logs/<session>/`. Swap in `httpSink(url, headers?)`, `cognipeerSink(apiKey, url?)`, or `customSink({ onEvent, onSession })` for remote delivery or custom processing. |
 
-Example with upload:
+Example with an HTTP sink:
 
 ```ts
 const agent = createSmartAgent({
@@ -38,12 +35,10 @@ const agent = createSmartAgent({
 	tools,
 	tracing: {
 		enabled: true,
-		path: "logs",
 		logData: false,
-		upload: {
-			url: "https://observability.example.com/trace",
-			headers: { Authorization: `Bearer ${process.env.TRACE_TOKEN}` },
-		},
+		sink: httpSink("https://observability.example.com/trace", {
+			Authorization: `Bearer ${process.env.TRACE_TOKEN}`,
+		}),
 	},
 });
 ```
@@ -52,13 +47,13 @@ const agent = createSmartAgent({
 
 `trace.session.json` summarises the entire invocation:
 
-- **Session metadata** – `sessionId`, start/end timestamps, duration, and resolved tracing config (path, mode, logData, upload URL).
+- **Session metadata** – `sessionId`, start/end timestamps, duration, and resolved tracing config (logData flag plus a sanitized sink summary).
 - **Agent runtime** – name, version, model, and provider (when available).
 - **Summary** – aggregated token counts, byte totals, and per-event classifications.
 - **Events** – ordered list of model/tool/summarization events. Each record carries a stable `eventId`, a human-friendly `label`, status (`success`, `error`, `retry`, `skipped`), flattened metrics (`durationMs`, `inputTokens`, `outputTokens`, `requestBytes`, etc.), and optional tool identifiers.
 - **Errors** – flattened list of noteworthy errors (either per-event or session-level) for quick surfacing.
 
-When `logData` is `true`, payload sections expose sanitized snapshots under a `data.sections` array. Each section is one of a handful of kinds (`message`, `tool_call`, `tool_result`, `summary`, `metadata`) with concise, user-facing labels. Circular references, functions, and bigints are handled automatically. The optional `onLog` callback receives a cloned `TraceEventRecord` for every entry—perfect for streaming events into your own logger even when `writeToFile` is disabled.
+When `logData` is `true`, payload sections expose sanitized snapshots under a `data.sections` array. Each section is one of a handful of kinds (`message`, `tool_call`, `tool_result`, `summary`, `metadata`) with concise, user-facing labels. Circular references, functions, and bigints are handled automatically. Prefer `customSink({ onEvent })` if you want a realtime feed of recorded events.
 
 ### Example structure
 
@@ -69,7 +64,7 @@ When `logData` is `true`, payload sections expose sanitized snapshots under a `d
 	"endedAt": "2025-09-29T08:15:35.412Z",
 	"durationMs": 5289,
 	"agent": { "name": "SupportAgent", "version": "2025.09", "model": "gpt-4.1-mini", "provider": "openai" },
-	"config": { "enabled": true, "path": "logs", "mode": "batched", "logData": true, "writeToFile": true, "baseDir": ".../logs" },
+	"config": { "enabled": true, "logData": true, "sink": { "type": "file", "path": ".../logs" } },
 	"summary": { "totalDurationMs": 3120, "totalInputTokens": 812, "totalOutputTokens": 431, "totalCachedInputTokens": 48, "totalBytesIn": 18240, "totalBytesOut": 9211, "eventCounts": { "ai_call": 2, "tool_call": 1 } },
 	"events": [
 		{
@@ -118,7 +113,7 @@ When `logData` is `true`, payload sections expose sanitized snapshots under a `d
 ## Operational tips
 
 - **Retention** – traces are plain JSON. Rotate or purge `logs/` on a schedule if you generate many sessions.
-- **Privacy** – disable `logData` when prompts contain sensitive information, or redact inside your own tooling before upload.
+- **Privacy** – disable `logData` when prompts contain sensitive information, or redact inside your own tooling before forwarding via your sink.
 - **Streaming** – `mode` is currently `"batched"` for all sessions. Streaming hooks are reserved for future versions.
 - **Correlation** – events include both `sessionId` and `eventId`, making it simple to join with other telemetry sources.
 
@@ -130,4 +125,4 @@ logs/
 		trace.session.json
 ```
 
-Traces are safe to delete after ingestion. If you prefer remote storage, rely on the `upload` hook and periodically clear the local directory.
+Traces are safe to delete after ingestion. If you prefer remote storage, configure an `httpSink`/`cognipeerSink` and periodically clear the local directory.

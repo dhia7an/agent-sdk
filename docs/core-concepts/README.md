@@ -29,7 +29,7 @@ Each node is a pure-ish async function that receives the state and returns delta
 
 ## 3. Tools
 
-Tools are any object satisfying a minimal contract (`invoke`/`call`/`func`). Use `createSmartTool({ name, schema, func })` for convenience; schemas are Zod and outputs are serialized directly to tool messages.
+Tools are any object satisfying a minimal contract (`invoke`/`call`/`func`). Use `createTool({ name, schema, func })` for convenience; schemas are Zod and outputs are serialized directly to tool messages.
 
 Guidelines:
 - Validate inputs strictly (Zod will throw on invalid args).
@@ -82,7 +82,7 @@ Provide `outputSchema` (Zod). The framework:
 - `handoff` announcements when control switches to another runtime.
 - `finalAnswer` with the final assistant content.
 
-Enable `tracing.enabled` to persist JSON trace sessions under `logs/<session>/`. Set `logData: false` for metrics-only mode or add an `upload` target to ship traces to your observability API.
+Enable `tracing.enabled` to persist JSON trace sessions under `logs/<session>/`. Set `logData: false` for metrics-only mode or swap in a sink (`httpSink`, `cognipeerSink`, `customSink`) to ship traces to your observability API.
 
 ## 10. Usage tracking
 

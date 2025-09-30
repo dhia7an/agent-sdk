@@ -1,5 +1,6 @@
-import { END } from "@langchain/langgraph";
 import type { SmartAgentOptions, SmartState } from "../types.js";
+
+export const END = Symbol.for("agent-sdk.end");
 
 export function createShouldContinueNode(opts: SmartAgentOptions) {
   const max = (opts.limits?.maxToolCalls ?? 10) as number; // profile strings not supported here

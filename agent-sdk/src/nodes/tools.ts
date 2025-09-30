@@ -1,13 +1,13 @@
-import { Tool, type ToolInterface } from "@langchain/core/tools";
 import type {
   SmartAgentEvent,
   SmartAgentOptions,
   SmartState,
   HandoffDescriptor,
   AgentRuntimeConfig,
+  ToolInterface,
+  Message,
 } from "../types.js";
 import { nanoid } from "nanoid";
-import { ToolMessage } from "@langchain/core/messages";
 import { recordTraceEvent, sanitizeTracePayload, estimatePayloadBytes } from "../utils/tracing.js";
 
 export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>>, opts?: SmartAgentOptions) {
@@ -31,7 +31,7 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
       maxToolCalls: (runtime.limits?.maxToolCalls ?? 10) as number,
       maxParallelTools: Math.max(1, (runtime.limits?.maxParallelTools ?? 1) as number),
     };
-    const appended: ToolMessage[] = [];
+  const appended: Message[] = [];
     const onEvent = (state.ctx as any)?.__onEvent as ((e: SmartAgentEvent) => void) | undefined;
     const traceSession = (state.ctx as any)?.__traceSession;
     // Sync latest state into context tools if they carry a stateRef
@@ -87,11 +87,12 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
         toolExecutionId: tc.id,
         messageList,
       });
-      appended.push(new ToolMessage({
+      appended.push({
+        role: "tool",
         content: `Skipped tool due to tool-call limit: ${tc.name}`,
         tool_call_id: tc.id || `${tc.name}_${appended.length}`,
         name: tc.name,
-      }));
+      });
     }
 
     // Helper to run a single tool call
@@ -99,13 +100,12 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
       const t = toolByName.get(tc.name);
       if (!t) {
         onEvent?.({ type: "tool_call", phase: "error", name: tc.name, id: tc.id, args: tc.args, error: { message: "Tool not found" } });
-        appended.push(
-          new ToolMessage({
-            content: `Tool not found: ${tc.name}`,
-            tool_call_id: tc.id || `${tc.name}_${appended.length}`,
-            name: tc.name,
-          })
-        );
+        appended.push({
+          role: "tool",
+          content: `Tool not found: ${tc.name}`,
+          tool_call_id: tc.id || `${tc.name}_${appended.length}`,
+          name: tc.name,
+        });
         toolCount += 1;
         return;
       }
@@ -132,14 +132,14 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           // switch active agent; messages unchanged except we reply ok
           const executionId = nanoid();
           toolHistory.push({ executionId, toolName: (t as any).name, args, output: 'handoff:ok', rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
-          appended.push(new ToolMessage({ content: 'ok', tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));
+          appended.push({ role: "tool", content: 'ok', tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name });
           onEvent?.({ type: 'handoff', from: runtime.name, to: newRuntime.name, toolName: (t as any).name });
           state.agent = newRuntime;
           onEvent?.({ type: 'tool_call', phase: 'success', name: (t as any).name, id: tc.id, args, result: 'handoff', durationMs: Date.now() - start });
           toolCount += 1;
           return;
         }
-        const content = typeof output === "string" ? output : JSON.stringify(output);
+  const content = typeof output === "string" ? output : JSON.stringify(output);
         if (output && typeof output === 'object' && output.__finalStructuredOutput) {
           if (!state.ctx) state.ctx = {};
           state.ctx.__structuredOutputParsed = output.data;
@@ -148,7 +148,7 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
         const durationMs = Date.now() - start;
         const executionId = nanoid();
         toolHistory.push({ executionId, toolName: (t as any).name, args, output, rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
-        appended.push(new ToolMessage({ content, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));
+  appended.push({ role: "tool", content, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name });
         onEvent?.({ type: "tool_call", phase: "success", name: (t as any).name, id: tc.id, args, result: output, durationMs });
 
         const sanitizedOutput = sanitizeTracePayload(output);
@@ -191,7 +191,7 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
         const durationMs = Date.now() - start;
         const executionId = nanoid();
         toolHistory.push({ executionId, toolName: (t as any).name, args, output: `Error executing tool: ${e?.message || String(e)}`, rawOutput: null, timestamp: new Date().toISOString(), tool_call_id: tc.id });
-        appended.push(new ToolMessage({ content: `Error executing tool: ${e?.message || String(e)}`, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name }));
+  appended.push({ role: "tool", content: `Error executing tool: ${e?.message || String(e)}`, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name });
         onEvent?.({ type: "tool_call", phase: "error", name: (t as any).name, id: tc.id, args, error: { message: e?.message || String(e) } });
         const sanitizedArgs = sanitizeTracePayload(args);
         const inputBytes = traceSession?.resolvedConfig.logData ? estimatePayloadBytes(sanitizedArgs) : undefined;

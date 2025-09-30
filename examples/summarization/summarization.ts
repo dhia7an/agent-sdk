@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createSmartAgent, createSmartTool, fromLangchainModel } from "@cognipeer/agent-sdk";
+import { createSmartAgent, createTool, fromLangchainModel } from "@cognipeer/agent-sdk";
 import { ChatOpenAI } from "@langchain/openai";
 
-const echo = createSmartTool({
+const echo = createTool({
   name: "echo",
   description: "Echo back",
   schema: z.object({ text: z.string().optional() }),

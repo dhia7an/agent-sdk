@@ -1,7 +1,7 @@
 {
   "name": "@cognipeer/agent-sdk",
   "version": "0.1.1",
-  "description": "Composable lightweight smart agent core (no LangGraph) with pluggable model adapters (LangChain optional).",
+  "description": "Composable lightweight smart agent core (no LangGraph) with pluggable model adapters.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.cjs",
@@ -24,13 +24,7 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
-  "peerDependencies": {
-    "@langchain/core": "^0.3.0"
-  },
   "peerDependenciesMeta": {
-    "@langchain/core": {
-      "optional": true
-    },
     "openai": {
       "optional": true
     }
