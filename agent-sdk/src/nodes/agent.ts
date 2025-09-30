@@ -83,6 +83,27 @@ export function createAgentNode(opts: SmartAgentOptions) {
     const rawUsage = (response as any)?.usage || (response as any)?.response_metadata?.token_usage || (response as any)?.response_metadata?.usage;
     const normalized = normalizeUsage(rawUsage);
     const modelName = getModelName((runtime as any).model || (opts as any).model) || "unknown_model";
+    const providerName = getProviderName((runtime as any).model || (opts as any).model);
+    const durationMs = Date.now() - start;
+    const shouldLogResponse = !!traceSession && traceSession.resolvedConfig.logData;
+    const responsePayload = shouldLogResponse ? sanitizeTracePayload(response) : undefined;
+    const responseBytes = responsePayload !== undefined ? estimatePayloadBytes(responsePayload) : undefined;
+
+    recordTraceEvent(traceSession, {
+      type: "ai_call",
+      label: "Assistant Response",
+      actor: { scope: "agent", name: actorName, role: "assistant", version: actorVersion },
+      durationMs,
+      inputTokens: normalized?.prompt_tokens,
+      outputTokens: normalized?.completion_tokens,
+      totalTokens: normalized?.total_tokens,
+      cachedInputTokens: normalized?.prompt_tokens_details?.cached_tokens,
+      requestBytes: promptBytes,
+      responseBytes,
+      model: modelName,
+      provider: providerName,
+      messageList: messagesWithResponse,
+    });
     if (normalized) {
       const usageState = state.usage || { perRequest: [], totals: {} };
       const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

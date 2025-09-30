@@ -68,27 +68,173 @@ function resolveLogsBaseDir(customPath?: string, ensureDirectory = true) {
   return base;
 }
 
+function coerceToString(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "function" && value.length === 0) {
+    try {
+      return coerceToString((value as () => unknown)());
+    } catch {
+      return undefined;
+    }
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const normalized = coerceToString(item);
+      if (normalized) return normalized;
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
+function firstNonEmptyString(...candidates: Array<unknown>): string | undefined {
+  for (const candidate of candidates) {
+    const normalized = coerceToString(candidate);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
 export function getModelName(model: any): string | undefined {
-  return (
-    model?.model ??
-    model?.modelName ??
-    model?.options?.model ??
-    model?.lc_alias ??
-    model?.constructor?.name ??
-    undefined
+  if (!model) return undefined;
+
+  const maybeLc = model?._lc;
+  const direct = firstNonEmptyString(
+    model?.model,
+    model?.options?.model,
+    model?.params?.model,
+    model?.config?.model,
+    model?.configuration?.model,
+    model?.metadata?.model,
+    model?.lc_kwargs?.model,
+    maybeLc?.model,
+    maybeLc?.options?.model,
+    maybeLc?.params?.model,
+    maybeLc?.config?.model,
+    maybeLc?.configuration?.model,
+    maybeLc?.metadata?.model,
+    maybeLc?.lc_kwargs?.model,
+    model?.metadata?.modelName,
+    maybeLc?.metadata?.modelName,
+    model?.modelName,
+    maybeLc?.modelName,
+    model?.lc_alias,
+    model?.model_id,
+    model?.id,
+    maybeLc?.model_id,
+    maybeLc?.id,
+    model?._model,
+    model?._modelName,
+    model?.__model
   );
+  if (direct) return direct;
+
+  const maybeClient = model?.client || model?.api || model?.service;
+  const clientValue = firstNonEmptyString(
+    maybeClient?.model,
+    maybeClient?.config?.model,
+    maybeClient?.options?.model,
+    maybeClient?.default?.model
+  );
+  if (clientValue) return clientValue;
+
+  const fnNames = firstNonEmptyString(model?._modelId, model?._llmType, maybeLc?._modelId, maybeLc?._llmType, model?.constructor?.name);
+  return fnNames;
 }
 
 export function getProviderName(model: any): string | undefined {
-  return (
-    model?.provider ??
-    model?.options?.provider ??
-    model?.client?.provider ??
-    model?.client?.config?.provider ??
-    model?.configuration?.provider ??
-    model?.lc_kwargs?.provider ??
-    undefined
+  if (!model) return undefined;
+
+  const direct = firstNonEmptyString(
+    model?.provider,
+    model?.options?.provider,
+    model?.params?.provider,
+    model?.config?.provider,
+    model?.configuration?.provider,
+    model?.metadata?.provider,
+    model?.lc_kwargs?.provider,
+    model?.lc_alias,
+    model?.__provider
   );
+  if (direct) return direct;
+
+  const maybeLc = model?._lc;
+  const lcValue = maybeLc
+    ? firstNonEmptyString(
+      maybeLc?.provider,
+      maybeLc?.options?.provider,
+      maybeLc?.config?.provider,
+      maybeLc?.configuration?.provider,
+      maybeLc?.metadata?.provider,
+      maybeLc?.lc_kwargs?.provider,
+      maybeLc?.client?.config?.provider
+    )
+    : undefined;
+  if (lcValue) return lcValue;
+
+  const maybeClient = model?.client || model?.api || model?.service;
+  return firstNonEmptyString(
+    maybeClient?.provider,
+    maybeClient?.config?.provider,
+    maybeClient?.options?.provider,
+    maybeClient?.metadata?.provider
+  );
+}
+
+function inferModelFromMessages(messageList?: any[]): string | undefined {
+  if (!Array.isArray(messageList)) return undefined;
+  for (let i = messageList.length - 1; i >= 0; i -= 1) {
+    const message = messageList[i];
+    if (!message) continue;
+    const candidate = firstNonEmptyString(
+      message?.metadata?.model,
+      message?.metadata?.modelName,
+      message?.metadata?.modelNames,
+      message?.metadata?.model_id,
+      message?.response_metadata?.model,
+      message?.response_metadata?.modelName,
+      message?.response_metadata?.modelNames,
+      message?.response_metadata?.model_id,
+      message?.usage_metadata?.model,
+      message?.model,
+      message?.modelName,
+      message?.model_id,
+      message?.additional_kwargs?.model,
+      message?.additional_kwargs?.modelName,
+      message?.info?.model,
+      message?.annotations?.model
+    );
+    if (candidate) return candidate;
+  }
+  return undefined;
+}
+
+function inferProviderFromMessages(messageList?: any[]): string | undefined {
+  if (!Array.isArray(messageList)) return undefined;
+  for (let i = messageList.length - 1; i >= 0; i -= 1) {
+    const message = messageList[i];
+    if (!message) continue;
+    const candidate = firstNonEmptyString(
+      message?.metadata?.provider,
+      message?.metadata?.providers,
+      message?.response_metadata?.provider,
+      message?.response_metadata?.providers,
+      message?.usage_metadata?.provider,
+      message?.provider,
+      message?.additional_kwargs?.provider,
+      message?.info?.provider,
+      message?.annotations?.provider
+    );
+    if (candidate) return candidate;
+  }
+  return undefined;
 }
 
 const DEFAULT_TRACE_CONFIG = {
@@ -513,6 +659,9 @@ export function recordTraceEvent(
     sections = ensureUniqueSections(id, converted);
   }
 
+  const resolvedModel = event.model ?? inferModelFromMessages(event.messageList);
+  const resolvedProvider = event.provider ?? inferProviderFromMessages(event.messageList);
+
   const record: TraceEventRecord = {
     sessionId: session.sessionId,
     id,
@@ -529,8 +678,8 @@ export function recordTraceEvent(
     cachedInputTokens,
     requestBytes,
     responseBytes,
-    model: event.model,
-    provider: event.provider,
+    model: resolvedModel,
+    provider: resolvedProvider,
     toolExecutionId: event.toolExecutionId,
     retryOf: event.retryOf,
     error: event.error ?? (status === "error" ? { message: "Unknown error" } : undefined) ?? undefined,

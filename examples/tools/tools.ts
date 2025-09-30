@@ -51,7 +51,7 @@ const tavilySearch = createTool({
 });
 
 const apiKey = OPENAI_API_KEY;
-const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-4o-mini", apiKey }));
+const model = fromLangchainModel(new ChatOpenAI({ model: "gpt-5-mini", apiKey }));
 
 const agent = createAgent({
     name: 'Cognipeer Agent Example',
