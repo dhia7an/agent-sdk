@@ -93,6 +93,9 @@ export function createSmartAgent<TOutput = unknown>(opts: SmartAgentOptions & { 
 
       return lastResult as AgentInvokeResult<TOutput>;
     },
+    snapshot: base.snapshot,
+    resume: base.resume,
+    resolveToolApproval: base.resolveToolApproval,
     asTool: base.asTool,
     asHandoff: base.asHandoff,
     __runtime: base.__runtime,

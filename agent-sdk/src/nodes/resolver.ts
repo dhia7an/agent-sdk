@@ -12,6 +12,7 @@ export function createResolverNode() {
       toolCache: state.toolCache || {},
   toolHistory: state.toolHistory || [],
   toolHistoryArchived: state.toolHistoryArchived || [],
+      pendingApprovals: state.pendingApprovals || [],
       plan: state.plan || null,
       planVersion: state.planVersion || 0,
     } as SmartState;

@@ -41,11 +41,13 @@ API & Building Blocks
 - [Tool Development](tool-development/) – Advanced authoring patterns and safeguards.
 
 Capabilities & Operations
+- [State Management](state-management/) – `onStateChange` hooks, snapshots, and resumable runs.
 - [Limits & Tokens](limits-tokens/) – Token heuristics, summarization knobs, and limit trade-offs.
 - [Tracing](debugging/) – JSON trace sessions, payload capture, and sink helpers.
 - [Examples](examples/) – Capability matrix mapped to example folders.
 - [FAQ](faq/) – Common issues, tips, and integration notes.
 - [MCP Integration](mcp/) – Connect remote MCP servers and reuse their tool catalog.
+- [Tool Approvals](tool-approvals/) – Human-in-the-loop gating, event payloads, and resume flow.
 
 ## Example coverage
 

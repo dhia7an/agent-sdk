@@ -9,11 +9,17 @@ export function createTool({
     description,
     schema,
     func,
+    needsApproval,
+    approvalPrompt,
+    approvalDefaults,
 }: {
     name: string;
     description?: string;
     schema: ZodSchema;
     func: SmartToolFn;
+    needsApproval?: boolean;
+    approvalPrompt?: string;
+    approvalDefaults?: any;
 }): ToolInterface {
     const execute: SmartToolFn = async (input: any) => func(input);
 
@@ -27,6 +33,16 @@ export function createTool({
         run: execute,
         func: execute,
     } as ToolInterface;
+
+    if (typeof needsApproval === "boolean") {
+        (toolRecord as any).needsApproval = needsApproval;
+    }
+    if (approvalPrompt !== undefined) {
+        (toolRecord as any).approvalPrompt = approvalPrompt;
+    }
+    if (approvalDefaults !== undefined) {
+        (toolRecord as any).approvalDefaults = approvalDefaults;
+    }
 
     (toolRecord as any).__source = (toolRecord as any).__source || "smart";
     (toolRecord as any).__impl = func;

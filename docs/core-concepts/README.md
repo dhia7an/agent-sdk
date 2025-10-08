@@ -72,7 +72,58 @@ Provide `outputSchema` (Zod). The framework:
 5. Move originals to `toolHistoryArchived` so `get_tool_response` can fetch them later.
 6. Emit a `summarization` event with the merged summary and archive count.
 
-## 9. Events & observability
+## 9. Pause & resume runs
+
+Long-running or supervised sessions often need to pause mid-flight and resume later. The loop supports this in two ways:
+
+- `invoke({ onStateChange })` lets you break out after any major stage. If the callback returns `true`, the loop sets `state.ctx.__paused` with metadata and returns immediately.
+- `agent.snapshot(state)` *(or the exported `captureSnapshot(state)` helper)* produces a JSON-serialisable snapshot that strips internal callbacks. Persist it to disk, then call `agent.resume(snapshot)` or `agent.invoke(restoreSnapshot(snapshot))` when you want to continue.
+
+When resuming, the agent inspects `state.ctx.__resumeStage` to skip straight to tool execution if the previous run stopped before tools executed. You rarely need to touch this flag manually; `resolveToolApproval` and `captureSnapshot` set it appropriately.
+
+```ts
+const result = await agent.invoke(state, {
+	onStateChange(current) {
+		const last = current.messages.at(-1);
+		return !current.ctx?.__resumeStage && Array.isArray(last?.tool_calls);
+	},
+	checkpointReason: "waiting-for-review",
+});
+
+if (result.state?.ctx?.__paused) {
+	const snapshot = agent.snapshot(result.state, { tag: "checkpoint" });
+	// persist snapshot (JSON.stringify) and resume later
+}
+
+📚 For deeper patterns (checkpoint metadata, resume flow, and telemetry ideas) see [State Management](/state-management/).
+```
+
+## 10. Human approvals for tools
+
+Any tool can opt into human-in-the-loop gating by setting `needsApproval: true` when created. The tool call is registered in `state.pendingApprovals` and execution halts until you resolve it.
+
+- `pendingApprovals` contains entries keyed by the tool-call id (`toolCallId`) and a generated `id`.
+- Use `agent.resolveToolApproval(state, { id, approved, approvedArgs?, decidedBy?, comment? })` to record the decision. Approved calls will run on the next turn; rejected calls append a rejection message back to the agent.
+- The event stream emits `tool_approval` events for pending, approved, and rejected statuses.
+
+```ts
+const pending = state.pendingApprovals?.[0];
+if (pending) {
+	const updated = agent.resolveToolApproval(state, {
+		id: pending.id,
+		approved: true,
+		decidedBy: "on-call",
+		comment: "Safe to execute",
+	});
+	const resumed = await agent.invoke(updated);
+}
+```
+
+Optional metadata (`approvalPrompt`, `approvalDefaults`) can be attached to tools to help drive reviewer UIs.
+
+📚 Need an end-to-end review workflow? Visit [Tool Approvals](/tool-approvals/) for guidance on events, UI hints, and checkpoint coordination.
+
+## 11. Events & observability
 
 `onEvent` (global or per-invoke) surfaces:
 - `tool_call` lifecycle events (start/success/error/skipped).
@@ -84,7 +135,7 @@ Provide `outputSchema` (Zod). The framework:
 
 Enable `tracing.enabled` to persist JSON trace sessions under `logs/<session>/`. Set `logData: false` for metrics-only mode or swap in a sink (`httpSink`, `cognipeerSink`, `customSink`) to ship traces to your observability API.
 
-## 10. Usage tracking
+## 12. Usage tracking
 
 Each assistant turn can contribute provider usage (if available). `normalizeUsage` maps the raw provider object into a consistent shape. Aggregated totals are stored in `state.usage.totals[modelName]` and emitted in `metadata` events.
 

@@ -12,6 +12,8 @@ export * from "./utils/utilTokens.js";
 export * from "./contextTools.js";
 export * from "./smart/index.js";
 export * from "./guardrails/index.js";
+export { captureSnapshot, restoreSnapshot } from "./utils/stateSnapshot.js";
+export { resolveToolApprovalState } from "./utils/toolApprovals.js";
 export { fromLangchainTools } from "./adapters/langchain.js";
 export { fileSink, customSink, cognipeerSink, httpSink } from "./utils/tracing.js";
 export { GuardrailPhase } from "./types.js";
@@ -50,6 +52,15 @@ export type {
 	GuardrailContext,
 	GuardrailDisposition,
 	GuardrailEvent,
+	AgentSnapshot,
+	SnapshotOptions,
+	RestoreSnapshotOptions,
+	SerializableSmartState,
+	SnapshotRuntimeHint,
+	AgentSnapshotMetadata,
+	PendingToolApproval,
+	ToolApprovalResolution,
+	ToolApprovalEvent,
 } from "./types.js";
 // Agent* aliases for migration
 export type { AgentOptions, AgentLimits, AgentState, AgentEvent, AgentResult, AgentInstance } from "./types.js";

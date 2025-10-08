@@ -21,6 +21,9 @@ export interface ToolInterface<TInput = any, TOutput = any, TCallOptions = any> 
   invoke?: (input: TInput, config?: TCallOptions) => Promise<TOutput> | TOutput;
   call?: (input: TInput, config?: TCallOptions) => Promise<TOutput> | TOutput;
   schema?: any; // optional JSON schema / zod inference
+  needsApproval?: boolean;
+  approvalPrompt?: string;
+  approvalDefaults?: any;
   [key: string]: any;
 }
 
@@ -403,6 +406,7 @@ export type SmartState = {
   planVersion?: number;
   metadata?: Record<string, any>;
   ctx?: Record<string, any>;
+  pendingApprovals?: PendingToolApproval[];
   // Usage tracking (per agent model call). Each agent turn that produces an AI response
   // appends an entry to usage.perRequest. totals aggregates by modelName.
   usage?: {
@@ -465,6 +469,43 @@ export type HandoffEvent = {
   toolName: string;
 };
 
+export type ToolApprovalStatus = "pending" | "approved" | "rejected" | "executed";
+
+export type PendingToolApproval = {
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  args: any;
+  status: ToolApprovalStatus;
+  requestedAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  comment?: string;
+  approvedArgs?: any;
+  resolvedAt?: string;
+  executionId?: string;
+  metadata?: Record<string, any>;
+};
+
+export type ToolApprovalResolution = {
+  id: string;
+  approved: boolean;
+  approvedArgs?: any;
+  decidedBy?: string;
+  comment?: string;
+};
+
+export type ToolApprovalEvent = {
+  type: "tool_approval";
+  status: "pending" | "approved" | "rejected";
+  id: string;
+  toolName: string;
+  toolCallId?: string;
+  args?: any;
+  decidedBy?: string;
+  comment?: string;
+};
+
 export type GuardrailEvent = {
   type: "guardrail";
   phase: GuardrailPhase;
@@ -479,6 +520,7 @@ export type GuardrailEvent = {
 
 export type SmartAgentEvent =
   | ToolCallEvent
+  | ToolApprovalEvent
   | PlanEvent
   | SummarizationEvent
   | FinalAnswerEvent
@@ -489,6 +531,45 @@ export type SmartAgentEvent =
 export type InvokeConfig = RunnableConfig & {
   // Optional per-call event hook (overrides SmartAgentOptions.onEvent if provided)
   onEvent?: (event: SmartAgentEvent) => void;
+  // Invoked after each major stage; return true to checkpoint execution (state.ctx.__paused will be set).
+  onStateChange?: (state: SmartState) => boolean;
+  // Optional reason stored alongside checkpoint metadata.
+  checkpointReason?: string;
+};
+
+export type SnapshotRuntimeHint = {
+  name?: string;
+  version?: string;
+  tools?: string[];
+};
+
+export type SerializableSmartState = Omit<SmartState, "agent"> & { agent?: undefined };
+
+export type AgentSnapshotMetadata = {
+  createdAt: string;
+  tag?: string;
+  paused?: {
+    stage?: string;
+    iteration?: number;
+    reason?: string;
+  } | null;
+};
+
+export type AgentSnapshot = {
+  state: SerializableSmartState;
+  runtimeHint?: SnapshotRuntimeHint;
+  metadata: AgentSnapshotMetadata;
+};
+
+export type SnapshotOptions = {
+  tag?: string;
+  includeRuntimeHint?: boolean;
+};
+
+export type RestoreSnapshotOptions = {
+  agent?: AgentRuntimeConfig;
+  ctx?: Record<string, any>;
+  mergeCtx?: boolean;
 };
 
 // Structured agent result returned by invoke
@@ -505,6 +586,9 @@ export type AgentInvokeResult<TOutput = unknown> = {
 // Public shape returned by the agent factory
 export type SmartAgentInstance<TOutput = unknown> = {
   invoke: (input: SmartState, config?: InvokeConfig) => Promise<AgentInvokeResult<TOutput>>;
+  snapshot: (state: SmartState, options?: SnapshotOptions) => AgentSnapshot;
+  resume: (snapshot: AgentSnapshot, config?: InvokeConfig, restoreOptions?: RestoreSnapshotOptions) => Promise<AgentInvokeResult<TOutput>>;
+  resolveToolApproval: (state: SmartState, resolution: ToolApprovalResolution) => SmartState;
   // Convert this agent into a tool usable by another agent. Accepts optional overrides.
   asTool: (opts: { toolName: string; description?: string; inputDescription?: string } ) => ToolInterface<any, any, any>;
   // Create a handoff descriptor so another agent can switch control to this one mid-conversation

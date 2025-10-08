@@ -87,6 +87,15 @@ For fake/offline mode, stub network calls with deterministic fixtures.
 ## Observability
 Emit relevant metadata within the returned object if it aids observability (e.g. `source: 'cache'`). Keep it concise.
 
+## Human-in-the-loop approvals
+
+Set `needsApproval: true` on any tool that should pause execution until a reviewer signs off. Optional helpers:
+
+- `approvalPrompt`: short text for UI surfaces explaining what needs to be reviewed.
+- `approvalDefaults`: arbitrary JSON you can use to pre-populate review forms.
+
+When the model selects the tool, the SDK stores a pending entry in `state.pendingApprovals`. Your host app can present the request to a human and then resolve it. See the dedicated [Tool Approvals](/tool-approvals/) guide for end-to-end wiring, including `resolveToolApproval` usage, event payloads, and checkpoint integration.
+
 ## Patterns
 | Pattern | Description | When to Use |
 |---------|-------------|-------------|

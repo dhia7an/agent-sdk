@@ -6,6 +6,7 @@ import type {
   AgentRuntimeConfig,
   ToolInterface,
   Message,
+  PendingToolApproval,
 } from "../types.js";
 import { nanoid } from "nanoid";
 import { recordTraceEvent, sanitizeTracePayload, estimatePayloadBytes } from "../utils/tracing.js";
@@ -34,6 +35,11 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
     const appended: Message[] = [];
     const onEvent = (state.ctx as any)?.__onEvent as ((e: SmartAgentEvent) => void) | undefined;
     const traceSession = (state.ctx as any)?.__traceSession;
+    const pendingApprovals: PendingToolApproval[] = Array.isArray(state.pendingApprovals)
+      ? state.pendingApprovals.map((entry) => ({ ...entry }))
+      : [];
+    const pendingByCallId = new Map(pendingApprovals.map((entry) => [entry.toolCallId, entry]));
+    let awaitingApproval = false;
     // Sync latest state into context tools if they carry a stateRef
     for (const t of toolByName.values()) {
       const anyT: any = t as any;
@@ -95,8 +101,12 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
       });
     }
 
+    type ToolExecutionResult =
+      | { status: "success" | "error"; approval?: PendingToolApproval }
+      | { status: "awaiting_approval" | "rejected"; approval: PendingToolApproval };
+
     // Helper to run a single tool call
-    const runOne = async (tc: { id?: string; name: string; args: any }) => {
+    const runOne = async (tc: { id?: string; name: string; args: any }): Promise<ToolExecutionResult> => {
       const t = toolByName.get(tc.name);
       if (!t) {
         onEvent?.({ type: "tool_call", phase: "error", name: tc.name, id: tc.id, args: tc.args, error: { message: "Tool not found" } });
@@ -107,11 +117,72 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           name: tc.name,
         });
         toolCount += 1;
-        return;
+        return { status: "error" };
       }
       let args: any = tc.args;
       if (typeof args === "string") {
         try { args = JSON.parse(args); } catch (_) { /* keep as string */ }
+      }
+      const toolCallId = tc.id || `${tc.name}_${toolCount + 1}`;
+      let approvalEntry = pendingByCallId.get(toolCallId);
+      const needsApproval = Boolean((t as any).needsApproval);
+      if (needsApproval) {
+        if (!approvalEntry) {
+          approvalEntry = {
+            id: nanoid(),
+            toolCallId,
+            toolName: (t as any).name || tc.name,
+            args,
+            status: "pending",
+            requestedAt: new Date().toISOString(),
+            metadata: (t as any).approvalPrompt || (t as any).approvalDefaults
+              ? { prompt: (t as any).approvalPrompt, defaults: (t as any).approvalDefaults }
+              : undefined,
+          };
+          pendingApprovals.push(approvalEntry);
+          pendingByCallId.set(toolCallId, approvalEntry);
+          onEvent?.({ type: "tool_approval", status: "pending", id: approvalEntry.id, toolName: approvalEntry.toolName, toolCallId: approvalEntry.toolCallId, args });
+        } else if (!approvalEntry.args) {
+          approvalEntry.args = args;
+        }
+
+        if (approvalEntry.status === "pending") {
+          awaitingApproval = true;
+          const ctx = (state.ctx = state.ctx || {});
+          ctx.__awaitingApproval = {
+            approvalId: approvalEntry.id,
+            toolCallId: approvalEntry.toolCallId,
+            toolName: approvalEntry.toolName,
+            requestedAt: approvalEntry.requestedAt,
+          };
+          ctx.__resumeStage = "tools";
+          return { status: "awaiting_approval", approval: approvalEntry };
+        }
+
+        if (approvalEntry.status === "rejected") {
+          const rejectionMessage = approvalEntry.comment || "Tool call rejected by reviewer.";
+          appended.push({
+            role: "tool",
+            content: `Tool call rejected: ${rejectionMessage}`,
+            tool_call_id: toolCallId,
+            name: tc.name,
+          });
+          onEvent?.({ type: "tool_approval", status: "rejected", id: approvalEntry.id, toolName: approvalEntry.toolName, toolCallId: approvalEntry.toolCallId, comment: approvalEntry.comment, decidedBy: approvalEntry.decidedBy });
+          approvalEntry.metadata = { ...(approvalEntry.metadata || {}), resolution: "rejected" };
+          approvalEntry.status = "executed";
+          approvalEntry.resolvedAt = new Date().toISOString();
+          toolHistory.push({ executionId: nanoid(), toolName: (t as any).name, args, output: `Rejected: ${rejectionMessage}`, rawOutput: null, timestamp: new Date().toISOString(), tool_call_id: tc.id });
+          pendingByCallId.set(toolCallId, approvalEntry);
+          toolCount += 1;
+          return { status: "rejected", approval: approvalEntry };
+        }
+
+        if (approvalEntry.status === "approved") {
+          if (approvalEntry.approvedArgs !== undefined) {
+            args = approvalEntry.approvedArgs;
+          }
+          onEvent?.({ type: "tool_approval", status: "approved", id: approvalEntry.id, toolName: approvalEntry.toolName, toolCallId: approvalEntry.toolCallId, decidedBy: approvalEntry.decidedBy, comment: approvalEntry.comment });
+        }
       }
       const start = Date.now();
       try {
@@ -137,7 +208,13 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           state.agent = newRuntime;
           onEvent?.({ type: 'tool_call', phase: 'success', name: (t as any).name, id: tc.id, args, result: 'handoff', durationMs: Date.now() - start });
           toolCount += 1;
-          return;
+          if (needsApproval && approvalEntry) {
+            approvalEntry.status = "executed";
+            approvalEntry.resolvedAt = new Date().toISOString();
+            approvalEntry.executionId = executionId;
+            pendingByCallId.set(toolCallId, approvalEntry);
+          }
+          return { status: "success", approval: approvalEntry };
         }
         const content = typeof output === "string" ? output : JSON.stringify(output);
         if (output && typeof output === 'object' && output.__finalStructuredOutput) {
@@ -150,6 +227,13 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
         toolHistory.push({ executionId, toolName: (t as any).name, args, output, rawOutput: output, timestamp: new Date().toISOString(), tool_call_id: tc.id });
         appended.push({ role: "tool", content, tool_call_id: tc.id || `${tc.name}_${appended.length}`, name: tc.name });
         onEvent?.({ type: "tool_call", phase: "success", name: (t as any).name, id: tc.id, args, result: output, durationMs });
+
+        if (needsApproval && approvalEntry) {
+          approvalEntry.status = "executed";
+          approvalEntry.resolvedAt = new Date().toISOString();
+          approvalEntry.executionId = executionId;
+          pendingByCallId.set(toolCallId, approvalEntry);
+        }
 
         const sanitizedOutput = sanitizeTracePayload(output);
         const outputBytes = traceSession?.resolvedConfig.logData ? estimatePayloadBytes(sanitizedOutput) : undefined;
@@ -187,6 +271,7 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           messageList,
         });
         toolCount += 1;
+  return { status: "success", approval: approvalEntry };
       } catch (e: any) {
         const durationMs = Date.now() - start;
         const executionId = nanoid();
@@ -231,16 +316,34 @@ export function createToolsNode(initialTools: Array<ToolInterface<any, any, any>
           messageList,
         });
         toolCount += 1;
+        return { status: "error", approval: approvalEntry };
       }
     };
 
-    // Run with limited parallelism
-    const concurrency = Math.max(1, limits.maxParallelTools);
-    for (let i = 0; i < planned.length; i += concurrency) {
-      const batch = planned.slice(i, i + concurrency);
-      await Promise.all(batch.map(runOne));
+    for (const tc of planned) {
+      if (awaitingApproval) break;
+      const result = await runOne(tc);
+      if (result?.status === "awaiting_approval") {
+        awaitingApproval = true;
+        break;
+      }
     }
 
-    return { messages: [...state.messages, ...appended], toolCallCount: toolCount, toolHistory, agent: state.agent };
+    if (!awaitingApproval && state.ctx?.__awaitingApproval) {
+      const ctx = { ...state.ctx };
+      delete ctx.__awaitingApproval;
+      if (!pendingApprovals.some((entry) => entry.status !== "executed")) {
+        delete ctx.__resumeStage;
+      }
+      state.ctx = Object.keys(ctx).length > 0 ? ctx : undefined;
+    }
+
+    return {
+      messages: [...state.messages, ...appended],
+      toolCallCount: toolCount,
+      toolHistory,
+      agent: state.agent,
+      pendingApprovals,
+    };
   };
 }
