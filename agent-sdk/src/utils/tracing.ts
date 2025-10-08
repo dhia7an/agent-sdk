@@ -662,6 +662,9 @@ export function recordTraceEvent(
   const resolvedModel = event.model ?? inferModelFromMessages(event.messageList);
   const resolvedProvider = event.provider ?? inferProviderFromMessages(event.messageList);
 
+  // For ai_call events, always include token fields (even if undefined/0) for consistency
+  const isAiCall = event.type === "ai_call";
+  
   const record: TraceEventRecord = {
     sessionId: session.sessionId,
     id,
@@ -672,10 +675,17 @@ export function recordTraceEvent(
     actor: event.actor,
     status,
     durationMs,
-    inputTokens,
-    outputTokens,
-    totalTokens,
-    cachedInputTokens,
+    ...(isAiCall ? {
+      inputTokens: inputTokens ?? 0,
+      outputTokens: outputTokens ?? 0,
+      totalTokens: totalTokens ?? 0,
+      cachedInputTokens: cachedInputTokens ?? 0,
+    } : {
+      ...(inputTokens !== undefined && { inputTokens }),
+      ...(outputTokens !== undefined && { outputTokens }),
+      ...(totalTokens !== undefined && { totalTokens }),
+      ...(cachedInputTokens !== undefined && { cachedInputTokens }),
+    }),
     requestBytes,
     responseBytes,
     model: resolvedModel,
