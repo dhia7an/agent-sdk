@@ -25,7 +25,7 @@ Each `invoke` creates a new session directory under `logs/<SESSION_ID>/` and wri
 |--------|-------------|
 | `enabled` | Required. Turn tracing on/off per agent. |
 | `logData` | When `true`, include prompt/response/tool payloads alongside metrics. Set to `false` to store only metadata. |
-| `sink` | Controls where finalized traces go. Defaults to `fileSink()` which writes `trace.session.json` under `<cwd>/logs/<session>/`. Swap in `httpSink(url, headers?)`, `cognipeerSink(apiKey, url?)`, or `customSink({ onEvent, onSession })` for remote delivery or custom processing. |
+| `sink` | Controls where finalized traces go. Defaults to `fileSink()` which writes `trace.session.json` under `[cwd]/logs/[session]/`. Swap in `httpSink(url, headers?)`, `cognipeerSink(apiKey, url?)`, or `customSink({ onEvent, onSession })` for remote delivery or custom processing. |
 
 Example with an HTTP sink:
 

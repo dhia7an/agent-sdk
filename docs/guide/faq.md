@@ -33,5 +33,5 @@ The assistant proposed additional tool calls after hitting `limits.maxToolCalls`
 
 ## Traces aren't showing up
 - Verify `tracing: { enabled: true }` was passed.
-- Confirm your process has write access to the tracing path (defaults to `<cwd>/logs`).
+- Confirm your process has write access to the tracing path (defaults to `[cwd]/logs`).
 - If you configured a non-file sink, check its HTTP responses/callback errors; failures are appended to the session `errors` array with type `sink`.

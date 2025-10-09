@@ -107,7 +107,7 @@ const result = await agent.invoke({
 
 ## Trace Output
 
-With tracing enabled, check \`logs/<session>/trace.session.json\` for execution details.
+With tracing enabled, check `logs/[session]/trace.session.json` for execution details.
 
 ## Next Steps
 
