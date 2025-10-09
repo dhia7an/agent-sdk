@@ -8,11 +8,9 @@ export type TokenLimits = {
 
 export async function applyTokenLimits({
   state,
-  model,
   limits,
 }: {
   state: { messages: Message[]; summaries?: string[] };
-  model: any;
   limits: {
     contextTokenLimit: number;
     summaryTokenLimit: number;
@@ -26,12 +24,4 @@ export async function applyTokenLimits({
   const newMessages: Message[] = [...messages];
 
   return { ...state, messages: newMessages };
-}
-
-function safeJson(v: any) {
-  try {
-    return typeof v === "string" ? v : JSON.stringify(v);
-  } catch {
-    return String(v);
-  }
 }

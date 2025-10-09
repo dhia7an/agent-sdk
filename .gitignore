@@ -1,26 +1,37 @@
-# ---- OS / Filesystem metadata ----
+# Dependencies
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Testing
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
 .AppleDouble
 .LSOverride
-Thumbs.db
-ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .Spotlight-V100
 .Trashes
 
-# ---- Editors / IDEs ----
-.vscode/
-.idea/
-*.swp
-*.swo
-*.orig
-
-*/.vitepress
-
-# ---- Environments & secrets ----
+# Env files
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
 !.env.sample
 !.env.template
@@ -30,7 +41,7 @@ $RECYCLE.BIN/
 *.key
 *.p12
 
-# ---- Logs & temp ----
+# Logs & temp
 logs/
 *.log
 npm-debug.log*
@@ -44,10 +55,9 @@ temp/
 .cache/
 .eslintcache
 
-# ---- Dependencies / builds ----
-node_modules/
-dist/
-build/
+# Docs build
+docs/.vitepress/dist
+docs/.vitepress/cache
 out/
 target/
 

@@ -259,7 +259,6 @@ export function createContextSummarizeNode(opts: SmartAgentOptions) {
         } as any;
 
         // And its synthetic tool response containing the actual summary content
-        const summaryExecId = nanoid();
         const syntheticToolResp = {
             role: 'tool',
             content: `${summaryText}`,

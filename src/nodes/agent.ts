@@ -17,12 +17,6 @@ export function createAgentNode(opts: SmartAgentOptions) {
       outputSchema: (opts as any).outputSchema,
     };
     const tools: Array<ToolInterface<any, any, any>> = (runtime.tools as any) ?? [];
-    const limits = {
-      maxToolCalls: runtime.limits?.maxToolCalls ?? 10,
-      toolOutputTokenLimit: runtime.limits?.toolOutputTokenLimit ?? 5000,
-      contextTokenLimit: runtime.limits?.contextTokenLimit ?? 60000,
-      summaryTokenLimit: runtime.limits?.summaryTokenLimit ?? 50000,
-    };
     const modelWithTools = (runtime.model)?.bindTools
       ? (runtime.model).bindTools(tools)
       : runtime.model;

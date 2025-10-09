@@ -1,5 +1,5 @@
 import type { AgentResult as AgentInvokeResult, InvokeConfig, AgentOptions as SmartAgentOptions, AgentState as SmartState, AgentInstance as SmartAgentInstance } from "../types.js";
-import { ZodSchema, z } from "zod";
+import { ZodSchema } from "zod";
 import { createAgent } from "../agent.js";
 import { createContextTools } from "../contextTools.js";
 import { createContextSummarizeNode } from "../nodes/contextSummarize.js";

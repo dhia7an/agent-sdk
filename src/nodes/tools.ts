@@ -2,7 +2,6 @@ import type {
   SmartAgentEvent,
   SmartAgentOptions,
   SmartState,
-  HandoffDescriptor,
   AgentRuntimeConfig,
   ToolInterface,
   Message,

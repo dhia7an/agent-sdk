@@ -167,7 +167,7 @@ export type SmartAgentOptions = {
   // Optional guard layer descriptors to evaluate before sending requests and after receiving responses
   guardrails?: ConversationGuardrail[];
   // Predefined handoff targets exposed as tools automatically
-  handoffs?: HandoffDescriptor<any, any, any>[];
+  handoffs?: HandoffDescriptor[];
   limits?: SmartAgentLimits;
   // Toggle token-aware context summarization. Default: true. Set to false to disable.
   summarization?: boolean;
@@ -360,7 +360,7 @@ export type TraceSessionRuntime = {
 };
 
 // Handoff descriptor returned from childAgent.asHandoff(...)
-export type HandoffDescriptor<TIn = any, TOut = any, TParsed = any> = {
+export type HandoffDescriptor<TParsed = any> = {
   type: "handoff";
   toolName: string;
   description: string;
@@ -592,7 +592,7 @@ export type SmartAgentInstance<TOutput = unknown> = {
   // Convert this agent into a tool usable by another agent. Accepts optional overrides.
   asTool: (opts: { toolName: string; description?: string; inputDescription?: string } ) => ToolInterface<any, any, any>;
   // Create a handoff descriptor so another agent can switch control to this one mid-conversation
-  asHandoff: (opts: { toolName?: string; description?: string; schema?: ZodSchema<any>; }) => HandoffDescriptor<any, any, TOutput>;
+  asHandoff: (opts: { toolName?: string; description?: string; schema?: ZodSchema<any>; }) => HandoffDescriptor<TOutput>;
   __runtime: AgentRuntimeConfig;
 };
 

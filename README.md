@@ -1,12 +1,12 @@
 # @cognipeer/agent-sdk
 
-[![npm](https://img.shields.io/npm/v/@cognipeer/agent-sdk?color=success)](https://npmjs.com/package/@cognipeer/agent-sdk) [Docs Website](https://cognipeer.github.io/agent-sdk/) · [Package (`@cognipeer/agent-sdk`)](./agent-sdk)
+[![npm](https://img.shields.io/npm/v/@cognipeer/agent-sdk?color=success)](https://npmjs.com/package/@cognipeer/agent-sdk) [Docs Website](https://cognipeer.github.io/agent-sdk/)
 
-Lightweight, message-first agent runtime that keeps tool calls transparent, automatically summarizes long histories, and ships with planning, multi-agent handoffs, and structured tracing. This monorepo contains the published SDK, runnable examples, and the documentation site.
+Lightweight, message-first agent runtime that keeps tool calls transparent, automatically summarizes long histories, and ships with planning, multi-agent handoffs, and structured tracing.
 
-- SDK source: `agent-sdk/`
+- SDK source: `src/`
 - Examples: `examples/`
-- Docs (Jekyll): `docs/`
+- Docs (VitePress): `docs/`
 - Requires Node.js **18.17+**
 
 ## Table of contents
@@ -42,9 +42,10 @@ Highlights:
 
 | Path | Description |
 |------|-------------|
-| `agent-sdk/` | Source for the published package (TypeScript, bundled via tsup). |
+| `src/` | Source for the published package (TypeScript, bundled via tsup). |
 | `examples/` | End-to-end scripts demonstrating tools, planning, summarization, multi-agent, MCP, structured output, and vision input. |
-| `docs/` | Jekyll site content served at [cognipeer.github.io/agent-sdk](https://cognipeer.github.io/agent-sdk/). |
+| `docs/` | VitePress documentation site served at [cognipeer.github.io/agent-sdk](https://cognipeer.github.io/agent-sdk/). |
+| `dist/` | Build output (generated). Contains ESM, CommonJS, and TypeScript definitions. |
 | `logs/` | Generated trace sessions when `tracing.enabled: true`. Safe to delete. |
 
 ## Install

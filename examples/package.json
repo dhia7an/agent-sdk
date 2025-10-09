@@ -1,0 +1,32 @@
+{
+  "name": "agent-sdk-examples",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Examples for Agent SDK",
+  "type": "module",
+  "scripts": {
+    "example:basic": "tsx basic/basic.ts",
+    "example:guardrails": "tsx guardrails/guardrails.ts",
+    "example:handoff": "tsx handoff/handoff.ts",
+    "example:mcp-tavily": "tsx mcp-tavily/mcp-tavily.ts",
+    "example:multi-agent": "tsx multi-agent/multi-agent.ts",
+    "example:pause-resume": "tsx pause-resume/pause-resume.ts",
+    "example:rewrite-summary": "tsx rewrite-summary/rewrite-summary.ts",
+    "example:structured-output": "tsx structured-output/structured-output.ts",
+    "example:summarization": "tsx summarization/summarization.ts",
+    "example:summarize-context": "tsx summarize-context/summarize-context.ts",
+    "example:todo-planning": "tsx todo-planning/todo-planning.ts",
+    "example:tool-approval": "tsx tool-approval/tool-approval.ts",
+    "example:tool-limit": "tsx tool-limit/tool-limit.ts",
+    "example:tools": "tsx tools/tools.ts",
+    "example:vision": "tsx vision/vision.ts"
+  },
+  "dependencies": {
+    "@cognipeer/agent-sdk": "file:.."
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}

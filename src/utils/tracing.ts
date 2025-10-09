@@ -9,7 +9,6 @@ import type {
   SmartAgentOptions,
   SmartAgentTracingConfig,
   TraceDataSection,
-  TraceErrorRecord,
   TraceEventRecord,
   TraceSessionConfigSnapshot,
   TraceSessionFile,

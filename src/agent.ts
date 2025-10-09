@@ -12,9 +12,6 @@ import { evaluateGuardrails } from "./guardrails/engine.js";
 import { captureSnapshot, restoreSnapshot } from "./utils/stateSnapshot.js";
 import { resolveToolApprovalState } from "./utils/toolApprovals.js";
 
-type LiteMessage = { role: string; content: any; name?: string; [k: string]: any };
-const human = (content: any): LiteMessage => ({ role: 'user', content });
-
 export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outputSchema?: ZodSchema<TOutput> }): SmartAgentInstance<TOutput> {
   const resolver = createResolverNode();
   const agentCore = createAgentCoreNode(opts);
@@ -370,7 +367,7 @@ export function createAgent<TOutput = unknown>(opts: SmartAgentOptions & { outpu
     asHandoff: ({ toolName, description, schema }: { toolName?: string; description?: string; schema?: ZodSchema<any>; }): HandoffDescriptor => {
       const finalName = toolName || `handoff_to_${runtime.name || 'agent'}`;
       const zschema = schema || z.object({ reason: z.string().describe('Reason for handoff') });
-  const tool = createTool({
+      createTool({
         name: finalName,
         description: description || `Handoff control to agent ${runtime.name || 'Agent'}`,
         schema: zschema,
