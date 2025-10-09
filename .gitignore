@@ -16,6 +16,8 @@ $RECYCLE.BIN/
 *.swo
 *.orig
 
+*/.vitepress
+
 # ---- Environments & secrets ----
 .env
 .env.*
